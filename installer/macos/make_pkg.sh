@@ -24,7 +24,8 @@ PLIST="$(dirname "$ROOT")/components.plist"
 pkgbuild --analyze --root "$ROOT" "$PLIST"
 i=0
 while /usr/libexec/PlistBuddy -c "Print :$i" "$PLIST" >/dev/null 2>&1; do
-  /usr/libexec/PlistBuddy -c "Set :$i:BundleIsRelocatable false" "$PLIST"
+  /usr/libexec/PlistBuddy -c "Delete :$i:BundleIsRelocatable" "$PLIST" 2>/dev/null || true
+  /usr/libexec/PlistBuddy -c "Add :$i:BundleIsRelocatable bool false" "$PLIST"
   i=$((i + 1))
 done
 

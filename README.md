@@ -5,6 +5,24 @@ Eigenentwicklung (Clean-Room): Standard-DSP-Formeln, eigene Architektur, eigene 
 
 ![mkvst0_4: zwei Cyborg-Figuren über der Skyline, Oszillatoren, LFO und Effekte](docs/screenshot.png)
 
+## Download
+
+| System | Installer |
+|---|---|
+| Windows (64 Bit) | [mkvst0_4-0.4.0-Windows-Setup.exe](https://github.com/mopamin/mkvst/releases/latest/download/mkvst0_4-0.4.0-Windows-Setup.exe) |
+| macOS (Apple Silicon + Intel) | [mkvst0_4-0.4.0-macOS.pkg](https://github.com/mopamin/mkvst/releases/latest/download/mkvst0_4-0.4.0-macOS.pkg) |
+| Linux (Debian/Ubuntu) | [mkvst0_4-0.4.0-Linux-amd64.deb](https://github.com/mopamin/mkvst/releases/latest/download/mkvst0_4-0.4.0-Linux-amd64.deb) |
+| Linux (andere) | [mkvst0_4-0.4.0-Linux-x86_64.tar.gz](https://github.com/mopamin/mkvst/releases/latest/download/mkvst0_4-0.4.0-Linux-x86_64.tar.gz), entpacken und `./install.sh` starten |
+
+Alle Versionen: [Releases](https://github.com/mopamin/mkvst/releases)
+
+Die Installer sind nicht kostenpflichtig signiert, deshalb warnt das System beim ersten Öffnen:
+- **macOS:** Rechtsklick auf die .pkg-Datei, „Öffnen“, dann nochmals „Öffnen“
+  (oder Systemeinstellungen, Datenschutz & Sicherheit, „Trotzdem öffnen“).
+- **Windows:** „Weitere Informationen“, dann „Trotzdem ausführen“.
+
+Installiert wird das VST3-Plug-in (macOS zusätzlich Audio Unit) und die Standalone-App.
+
 ## Bauen (Mac)
 
 1. Werkzeuge: `xcode-select --install` und `brew install cmake git`

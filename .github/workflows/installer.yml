@@ -2,7 +2,8 @@
 #   macOS:   mkvst0_4-<version>-macOS.pkg   (VST3, Audio Unit, Standalone-App; Apple Silicon + Intel)
 #   Windows: mkvst0_4-<version>-Windows-Setup.exe   (VST3, Standalone-App; 64 Bit)
 #   Linux:   mkvst0_4-<version>-Linux-amd64.deb und -Linux-x86_64.tar.gz   (VST3, Standalone-App)
-# Start: bei jedem Push/PR, von Hand unter "Actions", oder per Tag "v*" (dann auch als Release).
+# Start: bei jedem Push/PR oder von Hand unter "Actions".
+# Push auf main (z. B. Merge) oder Tag "v*": Installer landen als GitHub-Release v<Version> mit festen Download-Links.
 name: Installer
 
 on:
@@ -115,16 +116,26 @@ jobs:
             dist/*.tar.gz
 
   release:
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
     needs: [macos, windows, linux]
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
+      - uses: actions/checkout@v4
+
+      - name: Version aus CMakeLists.txt lesen
+        run: echo "VERSION=$(sed -nE 's/^project\(Mkvst04 VERSION ([0-9.]+)\)/\1/p' CMakeLists.txt)" >> "$GITHUB_ENV"
+
       - uses: actions/download-artifact@v4
         with:
           path: dist
           merge-multiple: true
+
       - uses: softprops/action-gh-release@v2
         with:
+          tag_name: v${{ env.VERSION }}
+          name: mkvst0_4 ${{ env.VERSION }}
+          target_commitish: ${{ github.sha }}
+          make_latest: true
           files: dist/*

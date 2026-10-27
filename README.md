@@ -1,6 +1,6 @@
 # mkvst0_4
 
-Ein dunkler, mysteriöser Synthesizer (VST3 / Audio Unit / Standalone) mit JUCE 8.
+Synthesizer (VST3 / Audio Unit / Standalone) mit JUCE 8.
 Eigenentwicklung (Clean-Room): Standard-DSP-Formeln, eigene Architektur, eigene Oberfläche.
 
 ## Bauen (Mac)

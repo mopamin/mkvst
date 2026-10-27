@@ -1,0 +1,130 @@
+# Baut mkvst0_4 auf GitHub und packt die Installer:
+#   macOS:   mkvst0_4-<version>-macOS.pkg   (VST3, Audio Unit, Standalone-App; Apple Silicon + Intel)
+#   Windows: mkvst0_4-<version>-Windows-Setup.exe   (VST3, Standalone-App; 64 Bit)
+#   Linux:   mkvst0_4-<version>-Linux-amd64.deb und -Linux-x86_64.tar.gz   (VST3, Standalone-App)
+# Start: bei jedem Push/PR, von Hand unter "Actions", oder per Tag "v*" (dann auch als Release).
+name: Installer
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+env:
+  JUCE_VERSION: 8.0.9
+  PRODUCT: mkvst0_4
+
+jobs:
+  macos:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Version aus CMakeLists.txt lesen
+        run: echo "VERSION=$(sed -nE 's/^project\(Mkvst04 VERSION ([0-9.]+)\)/\1/p' CMakeLists.txt)" >> "$GITHUB_ENV"
+
+      - name: JUCE laden
+        run: git clone --depth 1 --branch "$JUCE_VERSION" https://github.com/juce-framework/JUCE.git
+
+      - name: Bauen (Universal)
+        run: |
+          cmake -B build -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_OSX_ARCHITECTURES="arm64;x86_64" -DCMAKE_OSX_DEPLOYMENT_TARGET=11.0
+          cmake --build build --config Release --parallel
+
+      - name: Installer packen (.pkg)
+        run: ./installer/macos/make_pkg.sh build/Mkvst04_artefacts/Release "$VERSION" dist
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.PRODUCT }}-macOS
+          path: dist/*.pkg
+
+  windows:
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Version aus CMakeLists.txt lesen
+        shell: bash
+        run: echo "VERSION=$(sed -nE 's/^project\(Mkvst04 VERSION ([0-9.]+)\)/\1/p' CMakeLists.txt)" >> "$GITHUB_ENV"
+
+      - name: JUCE laden
+        shell: bash
+        run: git clone --depth 1 --branch "$JUCE_VERSION" https://github.com/juce-framework/JUCE.git
+
+      - name: Bauen (x64)
+        shell: bash
+        run: |
+          cmake -B build -A x64
+          cmake --build build --config Release --parallel
+
+      - name: Inno Setup bereitstellen
+        shell: pwsh
+        run: |
+          if (-not (Test-Path "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe")) { choco install innosetup -y --no-progress }
+
+      - name: Installer packen (.exe)
+        shell: pwsh
+        run: |
+          & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" `
+            "/DAppVersion=$env:VERSION" `
+            "/DBuildDir=$env:GITHUB_WORKSPACE\build\Mkvst04_artefacts\Release" `
+            "/O$env:GITHUB_WORKSPACE\dist" `
+            installer\windows\mkvst.iss
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.PRODUCT }}-Windows
+          path: dist/*.exe
+
+  linux:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Version aus CMakeLists.txt lesen
+        run: echo "VERSION=$(sed -nE 's/^project\(Mkvst04 VERSION ([0-9.]+)\)/\1/p' CMakeLists.txt)" >> "$GITHUB_ENV"
+
+      - name: Abhaengigkeiten installieren
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends ninja-build libasound2-dev libjack-jackd2-dev \
+            libfreetype-dev libfontconfig1-dev libx11-dev libxcomposite-dev libxcursor-dev libxext-dev \
+            libxinerama-dev libxrandr-dev libxrender-dev libgl1-mesa-dev
+
+      - name: JUCE laden
+        run: git clone --depth 1 --branch "$JUCE_VERSION" https://github.com/juce-framework/JUCE.git
+
+      - name: Bauen
+        run: |
+          cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
+          cmake --build build --parallel
+
+      - name: Installer packen (.deb, .tar.gz)
+        run: ./installer/linux/make_deb.sh build/Mkvst04_artefacts/Release "$VERSION" dist
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.PRODUCT }}-Linux
+          path: |
+            dist/*.deb
+            dist/*.tar.gz
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [macos, windows, linux]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*

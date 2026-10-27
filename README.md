@@ -1,7 +1,7 @@
 # mkvst0_4
 
 Synthesizer (VST3 / Audio Unit / Standalone) mit JUCE 8.
-Eigenentwicklung (Clean-Room): Standard-DSP-Formeln, eigene Architektur, eigene Oberfläche.
+ Standard-DSP-Formeln, eigene Architektur, eigene Oberfläche.
 
 ![mkvst0_4: zwei Cyborg-Figuren über der Skyline, Oszillatoren, LFO und Effekte](docs/screenshot.png)
 

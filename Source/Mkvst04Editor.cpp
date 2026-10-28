@@ -387,48 +387,68 @@ void Mkvst04Editor::buildFigures()
     bodyR.addRoundedRectangle (2.5f, -86.0f, 108.9f, 147.0f, 42.7f);
     bodyR.addRectangle (28.0f, 50.0f, 56.0f, 104.6f);
 
-    // Gehirn im linken Kopf, Stirn nach außen (-x). Großhirn: Ellipse, oben etwas voller als unten,
-    // vorne leicht abgeflacht; Kleinhirn hinten unten, Hirnstamm darunter.
-    //     x(a) = 21 cos a,   y(a) = -2 + (a < pi ? 11 : 14) sin a,   Stirn: x *= 0.92 für cos a < 0
+    // Gehirn im linken Kopf, Frontansicht: zwei Hälften nebeneinander, unten außen die Schläfenlappen,
+    // in der Mitte der Hirnstamm. Jede Hälfte ist eine Superellipse (kantiger als eine Ellipse, damit die
+    // Innenseiten am Mittelspalt flach aneinanderliegen):
+    //     x(a) = ±11 + 11,5 sgn(cos a) |cos a|^(2/n),   y(a) = -2 + 13,5 sgn(sin a) |sin a|^(2/n),   n = 2,6
     const auto c = brainCentreL;
-    juce::Path cerebrum;
-    for (int k = 0; k <= 64; ++k)
+    auto sgnPow = [] (float v) { return std::copysign (std::pow (std::abs (v), 2.0f / 2.6f), v); };
+    for (float side : { -1.0f, 1.0f })
     {
-        const float a = (float) k / 64.0f * twoPi;
-        const float x = 21.0f * std::cos (a) * (std::cos (a) < 0.0f ? 0.92f : 1.0f);
-        const float y = -2.0f + (a < pi ? 11.0f : 14.0f) * std::sin (a);
-        if (k == 0) cerebrum.startNewSubPath (c.x + x, c.y + y);
-        else        cerebrum.lineTo (c.x + x, c.y + y);
-    }
-    cerebrum.closeSubPath();
-    brainShape = cerebrum;
-    brainShape.addEllipse (c.x + 4.0f, c.y + 3.0f, 15.0f, 10.0f);                 // Kleinhirn
-    juce::Path stem;
-    stem.addRoundedRectangle (c.x + 2.0f, c.y + 6.0f, 5.0f, 14.0f, 2.5f);           // Hirnstamm
-    brainShape.addPath (stem, juce::AffineTransform::rotation (-0.3f, c.x + 4.5f, c.y + 6.0f));
-
-    // Windungen: wellige Linien quer durchs Großhirn, dazu Zentralfurche und seitliche Furche
-    //     y_row(x) = y0 + 1.8 sin(0.45 x + 1.7 row) + 1.0 sin(0.95 x + row)
-    for (int row = 0; row < 4; ++row)
-    {
-        const float y0 = -14.0f + (float) row * 5.4f;
-        for (int k = 0; k <= 48; ++k)
+        juce::Path half;
+        for (int k = 0; k < 96; ++k)
         {
-            const float x = -22.0f + (float) k * (44.0f / 48.0f);
-            const float y = y0 + 1.8f * std::sin (0.45f * x + 1.7f * (float) row) + 1.0f * std::sin (0.95f * x + (float) row);
-            if (k == 0) brainFolds.startNewSubPath (c.x + x, c.y + y);
-            else        brainFolds.lineTo (c.x + x, c.y + y);
+            const float a = (float) k / 96.0f * twoPi;
+            const float x = c.x + side * 11.0f + 11.5f * sgnPow (std::cos (a));
+            const float y = c.y - 2.0f + 13.5f * sgnPow (std::sin (a));
+            if (k == 0) half.startNewSubPath (x, y);
+            else        half.lineTo (x, y);
         }
+        half.closeSubPath();
+        brainShape.addPath (half);
+        brainShape.addEllipse (c.x + side * 14.0f - 6.5f, c.y + 2.0f, 13.0f, 10.0f);   // Schläfenlappen
     }
-    brainFolds.startNewSubPath (c.x + 1.0f, c.y - 13.0f);                          // Zentralfurche
-    brainFolds.quadraticTo (c.x + 4.0f, c.y - 5.0f, c.x + 2.0f, c.y + 2.0f);
-    brainFolds.startNewSubPath (c.x - 13.0f, c.y + 5.0f);                          // seitliche Furche
-    brainFolds.quadraticTo (c.x - 2.0f, c.y + 1.0f, c.x + 8.0f, c.y - 3.0f);
-    for (int k = 0; k < 3; ++k)                                                    // Rillen im Kleinhirn
+    brainShape.addRoundedRectangle (c.x - 2.5f, c.y + 8.0f, 5.0f, 11.0f, 2.5f);          // Hirnstamm
+
+    // Mittelspalt zwischen den Hälften (wird dunkel gezeichnet)
+    brainFissure.startNewSubPath (c.x, c.y - 15.5f);
+    brainFissure.lineTo (c.x, c.y + 9.0f);
+
+    // Windungen je Hälfte: drei offene, wellige Bögen von oben innen über außen nach unten,
+    //     r(t) = f + 0,08 sin((9 - 2k) pi t + k) + 0,04 sin((17 - 3k) pi t + 2k),   a(t) = -60° - 190° t
+    // dazu eine wellige Linie am Mittelspalt und die Furche über dem Schläfenlappen.
+    for (float side : { -1.0f, 1.0f })
     {
-        const float yy = c.y + 5.5f + (float) k * 2.4f;
-        brainFolds.startNewSubPath (c.x + 6.0f, yy);
-        brainFolds.quadraticTo (c.x + 11.5f, yy + 1.2f, c.x + 17.0f, yy - 0.4f);
+        auto X = [&] (float xl) { return c.x - side * xl; };          // xl: Koordinate der linken Hälfte
+        for (int k = 0; k < 3; ++k)
+        {
+            const float f = 0.8f - 0.25f * (float) k, kf = (float) k;
+            for (int n = 0; n <= 80; ++n)
+            {
+                const float t = (float) n / 80.0f;
+                const float a = juce::degreesToRadians (-60.0f - 190.0f * t);
+                const float r = f + 0.08f * std::sin (t * (9.0f - 2.0f * kf) * pi + kf)
+                                  + 0.04f * std::sin (t * (17.0f - 3.0f * kf) * pi + 2.0f * kf);
+                const float x = X (-11.0f + 11.5f * r * std::cos (a));
+                const float y = c.y - 2.0f + 13.5f * r * std::sin (a);
+                if (n == 0) brainFolds.startNewSubPath (x, y);
+                else        brainFolds.lineTo (x, y);
+            }
+        }
+        for (int n = 0; n <= 30; ++n)
+        {
+            const float t = (float) n / 30.0f;
+            const float x = c.x + side * (3.5f + 0.9f * std::sin (t * 11.0f));
+            if (n == 0) brainFolds.startNewSubPath (x, c.y - 12.0f + 18.0f * t);
+            else        brainFolds.lineTo (x, c.y - 12.0f + 18.0f * t);
+        }
+        for (int n = 0; n <= 30; ++n)
+        {
+            const float t = (float) n / 30.0f;
+            const float x = c.x + side * (9.0f + 8.0f * t), y = c.y + 7.0f + 1.2f * std::sin (t * 12.0f);
+            if (n == 0) brainFolds.startNewSubPath (x, y);
+            else        brainFolds.lineTo (x, y);
+        }
     }
 }
 
@@ -914,7 +934,7 @@ float Mkvst04Editor::brainGlow (float flash) const
     return juce::jlimit (0.0f, 1.0f, 0.3f + 0.4f * brainPulse + 0.45f * flash);
 }
 
-// Gehirn im Profil (Großhirn mit Windungen, Kleinhirn, Hirnstamm), schaut nach außen.
+// Gehirn in Frontansicht (zwei Hälften mit Windungen, Schläfenlappen, Hirnstamm).
 // Pfade in Figureneinheiten um brainCentreL; der rechte Kopf ist das Spiegelbild (x -> -x).
 // Weicher Schein = radialer Verlauf + breite, blasse Striche um den Umriss (JUCE hat keinen Blur).
 void Mkvst04Editor::drawBrain (juce::Graphics& g, const juce::AffineTransform& tfHead, bool mirrored, float flash)
@@ -947,6 +967,9 @@ void Mkvst04Editor::drawBrain (juce::Graphics& g, const juce::AffineTransform& t
     g.setColour (brainLight.withAlpha (0.15f + 0.45f * glow));
     g.strokePath (brainFolds, juce::PathStrokeType (1.1f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded), tf);
     g.restoreState();
+
+    g.setColour (juce::Colour (0xff1a0612).withAlpha (0.8f));
+    g.strokePath (brainFissure, juce::PathStrokeType (1.4f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded), tf);
 }
 
 //==============================================================================

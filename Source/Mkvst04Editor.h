@@ -104,7 +104,7 @@ private:
     juce::Path farBuildings, farWindows;                // ferne Stadt (Kulisse)
     juce::Image grain;                                  // Filmkorn
     juce::Path figureMask;                              // aktuelle Umrisse beider Figuren (pro Frame)
-    juce::Path brainShape, brainFolds;                  // Gehirn im linken Kopf (rechts gespiegelt)
+    juce::Path brainShape, brainFolds, brainFissure;    // Gehirn im linken Kopf (rechts gespiegelt)
     const juce::Point<float> brainCentreL { -56.3f, -117.0f };
     juce::Point<float> brainWorldL, brainWorldR;        // Blitz-Ursprünge: die Gehirne
 

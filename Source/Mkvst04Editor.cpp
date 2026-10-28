@@ -15,8 +15,8 @@ namespace
     constexpr float twoPi       = juce::MathConstants<float>::twoPi;
     constexpr float pi          = juce::MathConstants<float>::pi;
 
-    // Palette nach dem Referenzbild: dunkles Teal mit Nebel, Silbermetall, Kupferkabel,
-    // warme Fensterlichter, bunte LEDs, elektrisch blaue Blitze
+    // Palette nach dem Referenzbild: dunkles Teal mit Nebel, Silbermetall (Regler),
+    // warme Fensterlichter, bunte LEDs, elektrisch blaue Blitze, rosa Gehirne
     const juce::Colour skyTop     (0xff050f13);
     const juce::Colour skyMid     (0xff0b2228);
     const juce::Colour skyLow     (0xff16393c);
@@ -33,8 +33,8 @@ namespace
     const juce::Colour electric   (0xff6fd8ff);
     const juce::Colour textCol    (0xff9fc4c8);
     const juce::Colour steelLine  (0xff4a555b);
-
-    const juce::uint32 cableCols[] = { 0xffc47a3a, 0xffe0802a, 0xff4aa8ff, 0xff4cff6a, 0xffff4040, 0xffffd84a };
+    const juce::Colour brainPink  (0xffff6ec0);     // Gehirn: sanftes Rosa
+    const juce::Colour brainLight (0xffffc4e8);     // Windungen, heller
 
     struct KnobInfo { const char* id; const char* name; const char* suffix; int group; int decimals; };
     const KnobInfo knobInfo[] =
@@ -81,14 +81,11 @@ namespace
         return juce::Colour::fromHSV (juce::jmap (pitch01, 0.63f, 0.56f), saturation, 1.0f, 1.0f);
     }
 
-    // Herzschlag: zwei kurze Gauß-Glocken pro Periode ("Dum-dum"), 1,1 Schläge pro Sekunde.
-    //     bump(x, c) = exp(-((x - c) / 0.07)^2)
-    float heartbeat (float t)
+    // Puls pro Schlag (f = Phase im Viertel, 0..1): kurzer Anstieg, dann weiches Abklingen.
+    //     f < 0,05:  p = f / 0,05      sonst:  p = exp(-4,5 (f - 0,05))
+    float beatPulse (float f)
     {
-        const float ph = t * 1.1f;
-        const float f = ph - std::floor (ph);
-        auto bump = [] (float x, float c) { const float d = (x - c) / 0.07f; return std::exp (-d * d); };
-        return juce::jmin (1.0f, bump (f, 0.1f) + 0.6f * bump (f, 0.32f));
+        return f < 0.05f ? f / 0.05f : std::exp (-4.5f * (f - 0.05f));
     }
 
     // Einfacher Integer-Hash (stabile "Zufalls"-Werte für Fenster, Terminal-Zeilen, S&H)
@@ -389,6 +386,50 @@ void Mkvst04Editor::buildFigures()
     bodyL.addRectangle (-84.0f, 50.0f, 56.0f, 104.6f);
     bodyR.addRoundedRectangle (2.5f, -86.0f, 108.9f, 147.0f, 42.7f);
     bodyR.addRectangle (28.0f, 50.0f, 56.0f, 104.6f);
+
+    // Gehirn im linken Kopf, Stirn nach außen (-x). Großhirn: Ellipse, oben etwas voller als unten,
+    // vorne leicht abgeflacht; Kleinhirn hinten unten, Hirnstamm darunter.
+    //     x(a) = 21 cos a,   y(a) = -2 + (a < pi ? 11 : 14) sin a,   Stirn: x *= 0.92 für cos a < 0
+    const auto c = brainCentreL;
+    juce::Path cerebrum;
+    for (int k = 0; k <= 64; ++k)
+    {
+        const float a = (float) k / 64.0f * twoPi;
+        const float x = 21.0f * std::cos (a) * (std::cos (a) < 0.0f ? 0.92f : 1.0f);
+        const float y = -2.0f + (a < pi ? 11.0f : 14.0f) * std::sin (a);
+        if (k == 0) cerebrum.startNewSubPath (c.x + x, c.y + y);
+        else        cerebrum.lineTo (c.x + x, c.y + y);
+    }
+    cerebrum.closeSubPath();
+    brainShape = cerebrum;
+    brainShape.addEllipse (c.x + 4.0f, c.y + 3.0f, 15.0f, 10.0f);                 // Kleinhirn
+    juce::Path stem;
+    stem.addRoundedRectangle (c.x + 2.0f, c.y + 6.0f, 5.0f, 14.0f, 2.5f);           // Hirnstamm
+    brainShape.addPath (stem, juce::AffineTransform::rotation (-0.3f, c.x + 4.5f, c.y + 6.0f));
+
+    // Windungen: wellige Linien quer durchs Großhirn, dazu Zentralfurche und seitliche Furche
+    //     y_row(x) = y0 + 1.8 sin(0.45 x + 1.7 row) + 1.0 sin(0.95 x + row)
+    for (int row = 0; row < 4; ++row)
+    {
+        const float y0 = -14.0f + (float) row * 5.4f;
+        for (int k = 0; k <= 48; ++k)
+        {
+            const float x = -22.0f + (float) k * (44.0f / 48.0f);
+            const float y = y0 + 1.8f * std::sin (0.45f * x + 1.7f * (float) row) + 1.0f * std::sin (0.95f * x + (float) row);
+            if (k == 0) brainFolds.startNewSubPath (c.x + x, c.y + y);
+            else        brainFolds.lineTo (c.x + x, c.y + y);
+        }
+    }
+    brainFolds.startNewSubPath (c.x + 1.0f, c.y - 13.0f);                          // Zentralfurche
+    brainFolds.quadraticTo (c.x + 4.0f, c.y - 5.0f, c.x + 2.0f, c.y + 2.0f);
+    brainFolds.startNewSubPath (c.x - 13.0f, c.y + 5.0f);                          // seitliche Furche
+    brainFolds.quadraticTo (c.x - 2.0f, c.y + 1.0f, c.x + 8.0f, c.y - 3.0f);
+    for (int k = 0; k < 3; ++k)                                                    // Rillen im Kleinhirn
+    {
+        const float yy = c.y + 5.5f + (float) k * 2.4f;
+        brainFolds.startNewSubPath (c.x + 6.0f, yy);
+        brainFolds.quadraticTo (c.x + 11.5f, yy + 1.2f, c.x + 17.0f, yy - 0.4f);
+    }
 }
 
 // Skyline: Jede Note ist ein Haus. C-Töne sind höhere Türme mit Antenne, Halbtöne etwas niedriger
@@ -603,8 +644,25 @@ void Mkvst04Editor::timerCallback()
 {
     const float dt = 1.0f / 60.0f;
     time += dt;
+
+    // Takt der DAW: läuft der Transport, folgt die Phase der PPQ-Position (seit dem letzten Audio-Block
+    // mit dem Tempo weitergerechnet), sonst läuft sie frei im zuletzt bekannten Tempo (Standard 120 BPM).
+    {
+        const double bpm = juce::jlimit (20.0, 400.0, proc.hostBpm.load());
+        const double since = (juce::Time::getMillisecondCounterHiRes() - proc.hostPpqStamp.load()) / 1000.0;
+        if (proc.hostPlaying.load() && since < 0.5)
+        {
+            const double ppq = proc.hostPpq.load() + since * bpm / 60.0;
+            beatPhase = (float) (ppq - std::floor (ppq));
+        }
+        else
+        {
+            beatPhase += (float) (dt * bpm / 60.0);
+            beatPhase -= std::floor (beatPhase);
+        }
+        brainPulse = beatPulse (beatPhase);
+    }
     level += (proc.level.load() - level) * 0.25f;
-    const float e = juce::jlimit (0.0f, 1.0f, level * 6.0f);
 
     float targetL = 0.0f, targetR = 0.0f;
     for (int i = 0; i < numKeys; ++i)
@@ -613,15 +671,15 @@ void Mkvst04Editor::timerCallback()
         const bool leftSide = roofPoint (i).x < sceneCentre.x;
         if (on && ! keyOn[(size_t) i])
         {
-            // neue Note: Figuren pochen abwechselnd, Kopf immer, Blitz-Salve aus den Köpfen, Funken,
+            // neue Note: Figuren pochen abwechselnd, Kopf immer, Blitz-Salve aus den Gehirnen, Funken,
             // Sporen auf dem Dach und ein kurzes Aufleuchten des Himmels
             if (i % 2 == 0) kickL = 1.0f; else kickR = 1.0f;
             kickHead = 1.0f;
             skyFlash = 1.0f;
             if (flashes.size() < 40) flashes.push_back ({ i, 1.0f });
             spawnSpores (i, 14);
-            spawnSparkles (lensWorldL, 8);
-            spawnSparkles (lensWorldR, 8);
+            spawnSparkles (brainWorldL, 8);
+            spawnSparkles (brainWorldR, 8);
         }
         keyOn[(size_t) i] = on;
         keyGlow[(size_t) i] += ((on ? 1.0f : 0.0f) - keyGlow[(size_t) i]) * (on ? 0.5f : 0.08f);
@@ -637,10 +695,6 @@ void Mkvst04Editor::timerCallback()
     for (auto& f : flashes) f.life -= 3.5f * dt;
     flashes.erase (std::remove_if (flashes.begin(), flashes.end(), [] (const Flash& f) { return f.life <= 0.0f; }),
                    flashes.end());
-
-    // Lüfter drehen sich schneller bei Lautstärke
-    fanRot[0] += (1.5f + 14.0f * e) * dt;
-    fanRot[1] -= (1.2f + 12.0f * e) * dt;
 
     for (auto& sp : spores)
     {
@@ -767,15 +821,15 @@ void Mkvst04Editor::drawBackground (juce::Graphics& g)
 }
 
 //==============================================================================
-// Die zwei Cyborg-Figuren: Metallkörper mit Kameralinsen in den Köpfen, Kabelbündel zwischen den
-// Köpfen, LED-Pegeln, Terminals und Lüftern in den Körpern. Der Umriss ist das Logo-Piktogramm.
+// Die zwei Figuren: schwarze Silhouetten (Umriss = Logo-Piktogramm), Nebel zieht von unten hoch.
+// In jedem Kopf schimmert ein Gehirn durch, das im Takt der DAW pocht (brainPulse) und bei Noten
+// auf seiner Seite aufleuchtet (headFlashL/R). Aus den Gehirnen zucken die Blitze.
 void Mkvst04Editor::drawFigures (juce::Graphics& g)
 {
     const float energy = juce::jlimit (0.0f, 1.0f, level * 6.0f);
-    const float hb     = heartbeat (time);
     const float e      = juce::jlimit (0.0f, 1.0f, energy + 0.5f * juce::jmax (kickL, kickR, kickHead));
 
-    // Pochen: Ruhepuls + Lautstärke + Anschlag; dazu organisches Schwanken um die Füße
+    // Pochen im Takt + Lautstärke + Anschlag; dazu organisches Schwanken um die Füße
     auto tfFor = [&] (float px, float py, float s, float ang, float rx, float ry)
     {
         return juce::AffineTransform::scale (s, s, px, py)
@@ -783,7 +837,7 @@ void Mkvst04Editor::drawFigures (juce::Graphics& g)
                .followedBy (juce::AffineTransform::scale (figureScale))
                .followedBy (juce::AffineTransform::translation (sceneCentre.x, sceneCentre.y));
     };
-    const float baseS   = 1.0f + 0.015f * hb + 0.04f * energy;
+    const float baseS   = 1.0f + 0.012f * brainPulse + 0.04f * energy;
     const float swayAmp = 0.008f + 0.012f * energy;
     const float swayL   = swayAmp * std::sin (time * 0.9f);
     const float swayR   = swayAmp * std::sin (time * 0.9f + 2.4f);
@@ -791,8 +845,8 @@ void Mkvst04Editor::drawFigures (juce::Graphics& g)
     const auto tfR = tfFor ( 57.0f,    0.0f, baseS + 0.06f * kickR, swayR,  57.0f, 150.0f);
     const auto tfH = tfFor (  0.0f, -117.0f, baseS + 0.08f * kickHead, 0.5f * (swayL + swayR), 0.0f, -80.0f);
 
-    lensWorldL = juce::Point<float> (-56.0f, -126.0f).transformedBy (tfH);
-    lensWorldR = juce::Point<float> ( 56.0f, -126.0f).transformedBy (tfH);
+    brainWorldL = brainCentreL.transformedBy (tfH);
+    brainWorldR = juce::Point<float> (-brainCentreL.x, brainCentreL.y).transformedBy (tfH);
 
     juce::Path mask;
     mask.addPath (bodyL, tfL);
@@ -800,53 +854,48 @@ void Mkvst04Editor::drawFigures (juce::Graphics& g)
     mask.addPath (headPath, tfH);
     figureMask = mask;
 
-    // Grundkörper: Silbermetall mit Verlauf
+    // Kanten zuerst: feines Kantenlicht vom Himmel, dazu elektrischer Schein bei Energie. Die Silhouette
+    // wird danach darüber gefüllt, so bleibt nur die äußere Hälfte stehen (keine Kanten der Einzelteile).
+    g.setColour (fogTeal.brighter (0.4f).withAlpha (0.35f));
+    g.strokePath (figureMask, juce::PathStrokeType (2.0f));
+    g.setColour (electric.withAlpha (0.03f + 0.18f * e));
+    g.strokePath (figureMask, juce::PathStrokeType (8.0f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
+    g.setColour (electric.withAlpha (0.05f + 0.35f * e));
+    g.strokePath (figureMask, juce::PathStrokeType (2.0f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
+
+    // Silhouette: fast schwarz, unten ein Hauch dunkles Teal
     {
-        juce::ColourGradient metal (metalLight, sceneCentre.x - 170.0f, sceneCentre.y - 230.0f,
-                                    metalDark, sceneCentre.x + 170.0f, sceneCentre.y + 230.0f, false);
-        metal.addColour (0.45, metalMid);
-        g.setGradientFill (metal);
+        juce::ColourGradient ink (juce::Colour (0xff020304), 0.0f, sceneCentre.y - 230.0f,
+                                  juce::Colour (0xff050b0c), 0.0f, sceneCentre.y + 230.0f, false);
+        g.setGradientFill (ink);
         g.fillPath (figureMask);
     }
 
-    // Details, jeweils auf den Umriss des Teils begrenzt (Clip) und in Figureneinheiten gezeichnet
-    g.saveState();
-    g.reduceClipRegion (bodyL, tfL);
-    g.addTransform (tfL);
-    drawBodyDetails (g, true, e);
-    g.restoreState();
-
-    g.saveState();
-    g.reduceClipRegion (bodyR, tfR);
-    g.addTransform (tfR);
-    drawBodyDetails (g, false, e);
-    g.restoreState();
-
+    // Gehirne im Kopf, auf den Kopfumriss begrenzt
     g.saveState();
     g.reduceClipRegion (headPath, tfH);
-    g.addTransform (tfH);
-    drawHeadDetails (g, e);
+    drawBrain (g, tfH, false, headFlashL);
+    drawBrain (g, tfH, true,  headFlashR);
     g.restoreState();
-
-    drawMetalFinish (g, e);
 
     // Nebel zieht von unten an den Figuren hoch
     {
-        juce::ColourGradient haze (fogTeal.withAlpha (0.0f), 0.0f, sceneCentre.y - 100.0f,
-                                   fogTeal.withAlpha (0.55f), 0.0f, sceneCentre.y + 230.0f, false);
+        juce::ColourGradient haze (fogTeal.withAlpha (0.0f), 0.0f, sceneCentre.y - 60.0f,
+                                   fogTeal.withAlpha (0.32f), 0.0f, sceneCentre.y + 230.0f, false);
         g.setGradientFill (haze);
         g.fillPath (figureMask);
     }
 
-    // Kanten: Lichtkante oben links, Schattenkante unten rechts, dazu elektrischer Schein bei Energie
-    g.setColour (juce::Colours::white.withAlpha (0.22f));
-    g.strokePath (figureMask, juce::PathStrokeType (1.5f), juce::AffineTransform::translation (-1.0f, -1.0f));
-    g.setColour (juce::Colours::black.withAlpha (0.55f));
-    g.strokePath (figureMask, juce::PathStrokeType (1.5f), juce::AffineTransform::translation (1.2f, 1.2f));
-    g.setColour (electric.withAlpha (0.04f + 0.25f * e));
-    g.strokePath (figureMask, juce::PathStrokeType (6.0f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
-    g.setColour (electric.withAlpha (0.1f + 0.5f * e));
-    g.strokePath (figureMask, juce::PathStrokeType (1.2f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
+    // Lichtschein der Gehirne fällt durch den Kopf nach außen
+    for (int side = 0; side < 2; ++side)
+    {
+        const auto c = side == 0 ? brainWorldL : brainWorldR;
+        const float glow = brainGlow (side == 0 ? headFlashL : headFlashR);
+        juce::ColourGradient spill (brainPink.withAlpha (0.10f * glow), c, brainPink.withAlpha (0.0f),
+                                    c.translated (95.0f, 0.0f), true);
+        g.setGradientFill (spill);
+        g.fillEllipse (juce::Rectangle<float> (190.0f, 190.0f).withCentre (c));
+    }
 
     // Glitch beim Mutieren: Umriss in Cyan und Pink seitlich versetzt
     if (glitch > 0.03f)
@@ -859,399 +908,45 @@ void Mkvst04Editor::drawFigures (juce::Graphics& g)
     }
 }
 
-// --- Zeichenhelfer für die Roboter (Silbermetall, Schrauben, Platinen, Kühlrippen, Kabel) ---
-
-// Gebürstete Metallplatte mit Lichtkante oben und dunkler Kontur
-static void metalPlate (juce::Graphics& g, juce::Rectangle<float> r, float rad)
+// Helligkeit eines Gehirns: Grundglimmen, Takt-Puls und Aufleuchten bei Noten (flash 0..1)
+float Mkvst04Editor::brainGlow (float flash) const
 {
-    juce::ColourGradient m (metalLight, r.getX(), r.getY(), metalMid, r.getRight(), r.getBottom(), false);
-    g.setGradientFill (m);
-    g.fillRoundedRectangle (r, rad);
-    g.setColour (juce::Colour (0xff0b0f11).withAlpha (0.85f));
-    g.drawRoundedRectangle (r, rad, 0.9f);
-    g.setColour (juce::Colours::white.withAlpha (0.35f));
-    g.drawLine (r.getX() + rad * 0.6f, r.getY() + 0.8f, r.getRight() - rad * 0.6f, r.getY() + 0.8f, 0.8f);
+    return juce::jlimit (0.0f, 1.0f, 0.3f + 0.4f * brainPulse + 0.45f * flash);
 }
 
-static void screwAt (juce::Graphics& g, juce::Point<float> p, float rad)
+// Gehirn im Profil (Großhirn mit Windungen, Kleinhirn, Hirnstamm), schaut nach außen.
+// Pfade in Figureneinheiten um brainCentreL; der rechte Kopf ist das Spiegelbild (x -> -x).
+// Weicher Schein = radialer Verlauf + breite, blasse Striche um den Umriss (JUCE hat keinen Blur).
+void Mkvst04Editor::drawBrain (juce::Graphics& g, const juce::AffineTransform& tfHead, bool mirrored, float flash)
 {
-    const auto box = juce::Rectangle<float> (rad * 2.0f, rad * 2.0f).withCentre (p);
-    g.setColour (juce::Colour (0xff161c1f));
-    g.fillEllipse (box);
-    g.setColour (juce::Colour (0xff9aa3a8).withAlpha (0.8f));
-    g.drawEllipse (box, 0.6f);
-    g.drawLine (p.x - rad * 0.6f, p.y - rad * 0.3f, p.x + rad * 0.6f, p.y + rad * 0.3f, 0.6f);
-}
+    const float glow = brainGlow (flash);
+    const float grow = 0.86f * (1.0f + 0.035f * brainPulse + 0.03f * flash);
+    const auto c = brainCentreL;
+    auto tf = juce::AffineTransform::scale (grow, grow, c.x, c.y);
+    if (mirrored) tf = tf.followedBy (juce::AffineTransform::scale (-1.0f, 1.0f));
+    tf = tf.followedBy (tfHead);
 
-// Platine: grüne Fläche, goldene Leiterbahnen, schwarze Chips mit Beinchen
-static void pcbPatch (juce::Graphics& g, juce::Rectangle<float> r, int seed)
-{
-    g.setColour (juce::Colour (0xff1f5a3a));
-    g.fillRect (r);
-    g.setColour (juce::Colour (0xff0e2a1b));
-    g.drawRect (r, 0.7f);
-    juce::Random rn (seed);
-    g.setColour (juce::Colour (0xffc9a24a).withAlpha (0.8f));
-    for (int k = 0; k < 4; ++k)
+    const auto cw = c.transformedBy (tf);
+    juce::ColourGradient halo (brainPink.withAlpha (0.45f * glow), cw, brainPink.withAlpha (0.0f),
+                               cw.translated (42.0f * figureScale, 0.0f), true);
+    g.setGradientFill (halo);
+    g.fillEllipse (juce::Rectangle<float> (84.0f * figureScale, 84.0f * figureScale).withCentre (cw));
+
+    for (float w : { 9.0f, 5.0f })
     {
-        const float yy = r.getY() + 2.0f + rn.nextFloat() * (r.getHeight() - 4.0f);
-        g.drawLine (r.getX() + 1.0f, yy, r.getX() + 1.0f + rn.nextFloat() * r.getWidth() * 0.8f, yy, 0.6f);
+        g.setColour (brainPink.withAlpha ((w > 6.0f ? 0.07f : 0.13f) * glow));
+        g.strokePath (brainShape, juce::PathStrokeType (w, juce::PathStrokeType::curved, juce::PathStrokeType::rounded), tf);
     }
-    const int chips = 1 + (int) (r.getWidth() / 14.0f);
-    const float cw = (r.getWidth() - 4.0f) / (float) chips;
-    for (int k = 0; k < chips; ++k)
-    {
-        const juce::Rectangle<float> ch (r.getX() + 2.0f + (float) k * cw + 1.0f, r.getY() + r.getHeight() * 0.28f,
-                                         juce::jmax (3.0f, cw * 0.6f), r.getHeight() * 0.42f);
-        g.setColour (juce::Colour (0xff0b0e10));
-        g.fillRect (ch);
-        g.setColour (juce::Colour (0xffb8bfc4).withAlpha (0.7f));
-        g.drawLine (ch.getX(), ch.getY() - 0.8f, ch.getRight(), ch.getY() - 0.8f, 0.6f);
-        g.drawLine (ch.getX(), ch.getBottom() + 0.8f, ch.getRight(), ch.getBottom() + 0.8f, 0.6f);
-    }
-}
-
-// Kühlkörper mit Rippen
-static void heatSink (juce::Graphics& g, juce::Rectangle<float> r)
-{
-    g.setColour (juce::Colour (0xff566067));
-    g.fillRect (r);
-    g.setColour (juce::Colour (0xffb7bec3));
-    for (int k = 0; k <= 8; ++k)
-    {
-        const float x = r.getX() + (float) k / 8.0f * r.getWidth();
-        g.drawLine (x, r.getY(), x, r.getBottom(), 0.9f);
-    }
-    g.setColour (juce::Colours::black.withAlpha (0.5f));
-    g.drawRect (r, 0.8f);
-}
-
-// Kabelbündel (Kupfer, Orange, Blau, Grün, Rot, Gelb) von a nach b, schwingt leicht
-static void wireBundle (juce::Graphics& g, juce::Point<float> a, juce::Point<float> b,
-                        int count, float spacing, float time, float amp)
-{
-    const auto d = b - a;
-    const float len = juce::jmax (1.0f, std::hypot (d.x, d.y));
-    const juce::Point<float> n (-d.y / len, d.x / len);
-    for (int k = 0; k < count; ++k)
-    {
-        const float o = ((float) k - (float) (count - 1) * 0.5f) * spacing;
-        const auto pa = a + n * o, pb = b + n * o;
-        juce::Path p;
-        p.startNewSubPath (pa);
-        p.cubicTo (pa + d * 0.33f + n * (amp * std::sin (time * 0.8f + (float) k)),
-                   pb - d * 0.33f + n * (amp * std::sin (time * 0.6f + (float) k * 1.9f)), pb);
-        const juce::Colour c (cableCols[k % 6]);
-        g.setColour (c.darker (0.3f));
-        g.strokePath (p, juce::PathStrokeType (spacing * 0.9f));
-        g.setColour (c.brighter (0.2f));
-        g.strokePath (p, juce::PathStrokeType (juce::jmax (0.6f, spacing * 0.35f)));
-    }
-}
-
-// Körper (Maße im Koordinatensystem des linken Roboters, der rechte wird gespiegelt):
-// Schulterjoch, Brust mit zwei abgewinkelten Rahmen (links LED-Pegel, rechts Terminals), LED-Reihe,
-// Platinen, Mini-Display, Lüftungsgitter, Bauch mit Lüfter im Achteck, Kragen, Beine (ohne Arme).
-void Mkvst04Editor::drawBodyDetails (juce::Graphics& g, bool left, float e)
-{
-    auto P = [left] (float x, float y) { return juce::Point<float> (left ? x : -x, y); };
-    auto R = [left] (float x, float y, float w, float h) { return juce::Rectangle<float> (left ? x : -x - w, y, w, h); };
-    const float t = time;
-    const float pi4 = juce::MathConstants<float>::pi / 4.0f;
-
-    // Torso: eingelassene dunkle Platte und Schulterjoch
-    g.setColour (juce::Colour (0xff0f1619).withAlpha (0.7f));
-    g.fillRoundedRectangle (R (-104.0f, -80.0f, 95.0f, 112.0f), 16.0f);
-    g.setColour (juce::Colour (0xff050809).withAlpha (0.8f));
-    g.drawRoundedRectangle (R (-104.0f, -80.0f, 95.0f, 112.0f), 16.0f, 1.2f);
-    metalPlate (g, R (-102.0f, -85.0f, 91.0f, 9.0f), 4.0f);
-    for (float sx : { -96.0f, -56.5f, -17.0f })
-        screwAt (g, P (sx, -80.5f), 1.5f);
-
-    // Brust: zwei Rahmen mit LED-Pegeln (links) beziehungsweise Terminals (rechts)
-    for (int k = 0; k < 2; ++k)
-    {
-        const float bx = -102.0f + (float) k * 50.0f;
-        metalPlate (g, R (bx, -74.0f, 46.0f, 34.0f), 6.0f);
-        const auto inner = R (bx + 3.0f, -71.0f, 40.0f, 28.0f);
-        if (left) drawMeter (g, inner, (float) k * 2.3f, e);
-        else      drawScreen (g, inner, (float) k * 3.1f, e);
-    }
-
-    // Status-LEDs
-    static const juce::uint32 ledCols[] = { 0xff4cff6a, 0xff4aa8ff, 0xffffd84a, 0xffff4040 };
-    for (int k = 0; k < 12; ++k)
-    {
-        const float pulse = std::pow (juce::jmax (0.0f, std::sin (t * (1.3f + (float) k * 0.31f) + (float) k * 1.9f)), 3.0f);
-        const float a = juce::jlimit (0.0f, 1.0f, 0.2f + 0.8f * pulse + 0.4f * e);
-        const juce::Colour c (ledCols[(k * 3) % 4]);
-        const auto p = P (-97.0f + (float) k * 7.6f, -36.0f);
-        g.setColour (c.withAlpha (0.2f * a));
-        g.fillEllipse (juce::Rectangle<float> (7.0f, 7.0f).withCentre (p));
-        g.setColour (c.withAlpha (a));
-        g.fillEllipse (juce::Rectangle<float> (3.2f, 3.2f).withCentre (p));
-    }
-
-    // Mittelreihe: Platine, Mini-Display mit tanzenden Balken, Lüftungsgitter, Platine
-    pcbPatch (g, R (-102.0f, -29.0f, 30.0f, 20.0f), left ? 11 : 17);
-    {
-        const auto lcd = R (-68.0f, -29.0f, 22.0f, 10.0f);
-        g.setColour (juce::Colour (0xff061014));
-        g.fillRoundedRectangle (lcd, 2.0f);
-        for (int k = 0; k < 5; ++k)
-        {
-            const float hh = juce::jmin (7.0f, 1.5f + 6.0f * (0.5f + 0.5f * std::sin (t * (1.5f + (float) k * 0.7f) + (float) k)) * (0.4f + 0.6f * e));
-            g.setColour (electric.withAlpha (0.85f));
-            g.fillRect (lcd.getX() + 2.0f + (float) k * 4.0f, lcd.getBottom() - 1.5f - hh, 2.6f, hh);
-        }
-        g.setColour (juce::Colour (0xff6a737a));
-        g.drawRoundedRectangle (lcd, 2.0f, 0.9f);
-
-        const auto v = R (-68.0f, -16.0f, 22.0f, 8.0f);
-        g.setColour (juce::Colour (0xff0a0f11));
-        g.fillRect (v);
-        g.setColour (juce::Colour (0xff8d979d).withAlpha (0.7f));
-        for (int k = 1; k < 4; ++k)
-            g.drawLine (v.getX(), v.getY() + (float) k * 2.0f, v.getRight(), v.getY() + (float) k * 2.0f, 0.8f);
-    }
-    pcbPatch (g, R (-42.0f, -29.0f, 30.0f, 20.0f), left ? 23 : 29);
-
-    // Bauch: Achteck-Rahmen mit Lüfter
-    {
-        const auto c = P (-56.5f, 22.0f);
-        juce::Path oct;
-        for (int k = 0; k < 8; ++k)
-        {
-            const float a = ((float) k + 0.5f) * pi4;
-            const auto p = c + juce::Point<float> (std::cos (a), std::sin (a)) * 33.0f;
-            if (k == 0) oct.startNewSubPath (p); else oct.lineTo (p);
-        }
-        oct.closeSubPath();
-        g.setGradientFill (juce::ColourGradient (metalLight, c.x - 33.0f, c.y - 33.0f, metalDark, c.x + 33.0f, c.y + 33.0f, false));
-        g.fillPath (oct);
-        g.setColour (juce::Colour (0xff0b0f11));
-        g.strokePath (oct, juce::PathStrokeType (1.2f));
-        for (int k = 0; k < 4; ++k)
-        {
-            const float a = (2.0f * (float) k + 0.5f) * pi4 + pi4 * 0.5f;
-            screwAt (g, c + juce::Point<float> (std::cos (a), std::sin (a)) * 28.5f, 1.5f);
-        }
-        drawFan (g, c, 25.0f, fanRot[left ? 0 : 1]);
-    }
-
-    // Kragen und Beine
-    metalPlate (g, R (-110.0f, 52.0f, 106.0f, 9.0f), 4.0f);
-    for (int k = 0; k < 6; ++k)
-        screwAt (g, P (-104.0f + (float) k * 19.0f, 56.5f), 1.4f);
-    metalPlate (g, R (-82.0f, 70.0f, 52.0f, 18.0f), 4.0f);
-    metalPlate (g, R (-82.0f, 104.0f, 52.0f, 18.0f), 4.0f);
-    wireBundle (g, P (-56.0f, 88.0f), P (-56.0f, 104.0f), 5, 3.4f, t, 1.5f);
-}
-
-// Ein Kopfblock (Koordinaten des linken Blocks, der rechte wird gespiegelt): eingelassene Gesichtsplatte,
-// Kühlkörper, Platinen, Ohr-Scheibe, mehrere unterschiedliche Kameras (Hauptkamera = Blitz-Ursprung),
-// Kamera-Modul mit Silberrahmen, Lüftungsschlitz und Schrauben.
-void Mkvst04Editor::drawHeadBlock (juce::Graphics& g, bool left, float e, float flash)
-{
-    auto P = [left] (float x, float y) { return juce::Point<float> (left ? x : -x, y); };
-    auto R = [left] (float x, float y, float w, float h) { return juce::Rectangle<float> (left ? x : -x - w, y, w, h); };
-    const float glow = juce::jlimit (0.0f, 1.0f, 0.05f + 0.3f * e + 0.9f * flash);
-
-    const auto face = R (-87.0f, -150.0f, 61.0f, 66.0f);
-    g.setColour (juce::Colour (0xff0f171a).withAlpha (0.78f));
-    g.fillRoundedRectangle (face, 14.0f);
-    g.setColour (juce::Colour (0xffaeb5ba).withAlpha (0.75f));
-    g.drawRoundedRectangle (face, 14.0f, 1.6f);
-
-    heatSink (g, R (-86.0f, -152.0f, 22.0f, 7.0f));
-    pcbPatch (g, R (-84.0f, -144.0f, 16.0f, 9.0f), left ? 3 : 5);
-    pcbPatch (g, R (-76.0f, -97.0f, 20.0f, 9.0f), left ? 7 : 9);
-    pcbPatch (g, R (-50.0f, -96.0f, 24.0f, 9.0f), left ? 13 : 15);
-
-    // Ohr: Scheibe am Außenrand mit Gitterringen
-    {
-        const auto c = P (-88.0f, -115.0f);
-        g.setGradientFill (juce::ColourGradient (metalLight, c.x - 12.0f, c.y - 12.0f, metalDark, c.x + 12.0f, c.y + 12.0f, false));
-        g.fillEllipse (juce::Rectangle<float> (24.0f, 24.0f).withCentre (c));
-        g.setColour (juce::Colour (0xff0b0f11));
-        g.fillEllipse (juce::Rectangle<float> (17.0f, 17.0f).withCentre (c));
-        g.setColour (juce::Colour (0xff6a737a));
-        for (float rr : { 3.0f, 5.5f, 8.0f })
-            g.drawEllipse (juce::Rectangle<float> (rr * 2.0f, rr * 2.0f).withCentre (c), 0.7f);
-    }
-
-    // Kameras in verschiedenen Größen
-    drawLens (g, P (-56.0f, -126.0f), 10.0f, glow);
-    drawLens (g, P (-40.0f, -140.0f), 6.0f, glow * 0.6f);
-    drawLens (g, P (-36.0f, -110.0f), 8.0f, glow * 0.6f);
-    drawLens (g, P (-70.0f, -108.0f), 4.5f, glow * 0.4f);
-
-    // Kamera-Modul mit eckigem Silberrahmen neben der Brücke
-    metalPlate (g, R (-30.0f, -149.0f, 16.0f, 16.0f), 3.0f);
-    drawLens (g, P (-22.0f, -141.0f), 5.0f, glow * 0.5f);
-
-    // Lüftungsschlitz und Schrauben
-    {
-        const auto v = R (-30.0f, -92.0f, 14.0f, 6.0f);
-        g.setColour (juce::Colour (0xff0a0f11));
-        g.fillRect (v);
-        g.setColour (juce::Colour (0xff8d979d).withAlpha (0.7f));
-        g.drawLine (v.getX(), v.getY() + 2.0f, v.getRight(), v.getY() + 2.0f, 0.8f);
-        g.drawLine (v.getX(), v.getY() + 4.0f, v.getRight(), v.getY() + 4.0f, 0.8f);
-    }
-    screwAt (g, P (-82.0f, -90.0f), 1.5f);
-    screwAt (g, P (-30.0f, -126.0f), 1.5f);
-    screwAt (g, P (-62.0f, -146.0f), 1.5f);
-}
-
-// Köpfe: zwei Blöcke und dazwischen die Brücke mit Kabelbündeln und dem kupferfarbenen Prozessor.
-void Mkvst04Editor::drawHeadDetails (juce::Graphics& g, float e)
-{
-    drawHeadBlock (g, true, e, headFlashL);
-    drawHeadBlock (g, false, e, headFlashR);
-
-    // Kabelbündel quer über die Brücke
-    wireBundle (g, { -34.0f, -126.0f }, { 34.0f, -126.0f }, 6, 3.2f, time, 5.0f);
-    wireBundle (g, { -32.0f, -106.0f }, { 32.0f, -106.0f }, 4, 3.0f, time + 2.0f, 4.0f);
-
-    // Prozessor oben in der Mitte: Kupfer mit Raster, Silberrand
-    const juce::Rectangle<float> cpu (-13.0f, -148.0f, 26.0f, 17.0f);
-    g.setGradientFill (juce::ColourGradient (juce::Colour (0xffb98456), cpu.getX(), cpu.getY(),
-                                             juce::Colour (0xff6e4a2c), cpu.getRight(), cpu.getBottom(), false));
-    g.fillRect (cpu);
-    g.setColour (juce::Colour (0xff2a1c10).withAlpha (0.8f));
-    for (int k = 1; k < 7; ++k)
-        g.drawLine (cpu.getX() + (float) k * cpu.getWidth() / 7.0f, cpu.getY(), cpu.getX() + (float) k * cpu.getWidth() / 7.0f, cpu.getBottom(), 0.6f);
-    for (int k = 1; k < 4; ++k)
-        g.drawLine (cpu.getX(), cpu.getY() + (float) k * cpu.getHeight() / 4.0f, cpu.getRight(), cpu.getY() + (float) k * cpu.getHeight() / 4.0f, 0.6f);
-    g.setColour (juce::Colour (0xffc3c8cc));
-    g.drawRect (cpu, 1.0f);
-
-    // Anschluss unten an der Brücke
-    g.setColour (juce::Colour (0xff10171a));
-    g.fillRect (-8.0f, -100.0f, 16.0f, 7.0f);
-    g.setColour (juce::Colour (0xffc9a24a));
-    for (int k = 0; k < 5; ++k)
-        g.fillRect (-6.0f + (float) k * 3.0f, -98.0f, 1.5f, 3.0f);
-}
-
-// Kamera: Metallring mit Riffelung, schwarzes Gehäuse, innere Ringe, getöntes Glas mit Spiegelung.
-// Das Glas bleibt im Ruhezustand dunkel und leuchtet nur bei Energie und Blitzen bläulich (glow 0..1).
-void Mkvst04Editor::drawLens (juce::Graphics& g, juce::Point<float> c, float r, float glow)
-{
-    if (glow > 0.3f)
-    {
-        juce::ColourGradient halo (electric.withAlpha (0.3f * glow), c, juce::Colours::transparentBlack,
-                                   c.translated (r * 2.6f, 0.0f), true);
-        g.setGradientFill (halo);
-        g.fillEllipse (juce::Rectangle<float> (r * 5.2f, r * 5.2f).withCentre (c));
-    }
-
-    g.setGradientFill (juce::ColourGradient (metalLight, c.x - r, c.y - r, metalDark, c.x + r, c.y + r, false));
-    g.fillEllipse (juce::Rectangle<float> (r * 2.0f + 5.0f, r * 2.0f + 5.0f).withCentre (c));
-    g.setColour (juce::Colour (0xff0b0f11).withAlpha (0.8f));
-    for (int k = 0; k < 16; ++k)                                       // Riffelung am Ring
-    {
-        const float a = (float) k * juce::MathConstants<float>::twoPi / 16.0f;
-        g.drawLine (c.x + std::cos (a) * (r + 1.2f), c.y + std::sin (a) * (r + 1.2f),
-                    c.x + std::cos (a) * (r + 2.4f), c.y + std::sin (a) * (r + 2.4f), 0.7f);
-    }
-    g.setColour (juce::Colour (0xff0b0f11));
-    g.fillEllipse (juce::Rectangle<float> (r * 2.0f + 1.0f, r * 2.0f + 1.0f).withCentre (c));
-    g.setColour (juce::Colour (0xff1c2a33));
-    g.fillEllipse (juce::Rectangle<float> (r * 1.55f, r * 1.55f).withCentre (c));
-    g.setColour (juce::Colour (0xff3a4a54).withAlpha (0.9f));
-    g.drawEllipse (juce::Rectangle<float> (r * 1.55f, r * 1.55f).withCentre (c), 0.8f);
-
-    juce::ColourGradient glass (juce::Colour (0xff0f2a44).interpolatedWith (electric, glow * 0.8f), c,
-                                juce::Colour (0xff04090d), c.translated (r * 0.8f, 0.0f), true);
-    g.setGradientFill (glass);
-    g.fillEllipse (juce::Rectangle<float> (r * 1.1f, r * 1.1f).withCentre (c));
-
-    g.setColour (juce::Colours::white.withAlpha (0.18f + 0.5f * glow));
-    g.fillEllipse (juce::Rectangle<float> (r * 0.3f, r * 0.22f).withCentre (c.translated (-r * 0.2f, -r * 0.22f)));
-    g.setColour (juce::Colour (0xffff5ad2).withAlpha (0.3f));                  // Vergütungsreflex
-    g.fillEllipse (juce::Rectangle<float> (r * 0.18f, r * 0.18f).withCentre (c.translated (r * 0.2f, r * 0.24f)));
-}
-
-// Lüfter: Gitter, sechs Flügel (Kreisringsegmente) die sich mit rot drehen, Nabe
-void Mkvst04Editor::drawFan (juce::Graphics& g, juce::Point<float> c, float r, float rot)
-{
-    g.setColour (juce::Colour (0xff0a0f11));
-    g.fillEllipse (juce::Rectangle<float> (r * 2.0f, r * 2.0f).withCentre (c));
-
-    for (int k = 0; k < 6; ++k)
-    {
-        const float a0 = rot + (float) k * twoPi / 6.0f;
-        juce::Path blade;
-        blade.addPieSegment (juce::Rectangle<float> (r * 1.8f, r * 1.8f).withCentre (c), a0, a0 + 0.65f, 0.22f);
-        g.setColour (juce::Colour (0xff4b555b));
-        g.fillPath (blade);
-        g.setColour (juce::Colour (0xff7c868c).withAlpha (0.6f));
-        g.strokePath (blade, juce::PathStrokeType (0.8f));
-    }
-
-    g.setColour (juce::Colour (0xff8d979d).withAlpha (0.6f));
-    for (float ring : { 0.5f, 0.75f, 1.0f })
-        g.drawEllipse (juce::Rectangle<float> (r * 2.0f * ring, r * 2.0f * ring).withCentre (c), 1.0f);
-    for (int k = 0; k < 4; ++k)
-    {
-        const float a = (float) k * pi / 4.0f;
-        g.drawLine (c.x - std::cos (a) * r, c.y - std::sin (a) * r, c.x + std::cos (a) * r, c.y + std::sin (a) * r, 0.8f);
-    }
-    g.setColour (juce::Colour (0xffaab0b5));
-    g.fillEllipse (juce::Rectangle<float> (r * 0.36f, r * 0.36f).withCentre (c));
-}
-
-// LED-Pegel: 8 Spalten x 5 Reihen (grün, gelb, rot); die Balken tanzen, mit Lautstärke höher
-void Mkvst04Editor::drawMeter (juce::Graphics& g, juce::Rectangle<float> r, float phase, float e)
-{
-    g.setColour (juce::Colour (0xff060a0c));
-    g.fillRoundedRectangle (r, 2.5f);
-    for (int c = 0; c < 8; ++c)
-    {
-        const float bar = (0.12f + 0.88f * e) * (0.3f + 0.7f * std::abs (std::sin (time * (1.1f + (float) c * 0.43f) + (float) c * 1.7f + phase)));
-        const int lit = (int) (bar * 5.0f + 0.5f);
-        for (int row = 0; row < 5; ++row)
-        {
-            const auto col = row < 2 ? ledGreen : (row < 4 ? ledYellow : ledRed);
-            g.setColour (col.withAlpha (row < lit ? 0.95f : 0.14f));
-            g.fillRect (r.getX() + 2.5f + (float) c * 4.6f, r.getBottom() - 3.5f - (float) (row + 1) * 4.3f, 3.4f, 3.2f);
-        }
-    }
-}
-
-// Terminal: Textzeilen (als Balken) laufen nach oben, ein Cursor blinkt
-void Mkvst04Editor::drawScreen (juce::Graphics& g, juce::Rectangle<float> r, float phase, float e)
-{
-    g.setColour (juce::Colour (0xff061014));
-    g.fillRoundedRectangle (r, 3.0f);
+    g.setColour (brainPink.withAlpha (0.14f + 0.32f * glow));
+    g.fillPath (brainShape, tf);
 
     g.saveState();
-    juce::Path clip;
-    clip.addRoundedRectangle (r.reduced (2.0f), 2.0f);
-    g.reduceClipRegion (clip, juce::AffineTransform());
-
-    const float scroll = time * 9.0f + phase * 4.0f;
-    const int base = (int) std::floor (scroll / 5.0f);
-    const float frac = scroll - std::floor (scroll / 5.0f) * 5.0f;
-    for (int row = 0; row < 9; ++row)
-    {
-        const float y = r.getBottom() - 6.0f - ((float) row * 5.0f + frac);
-        const juce::uint32 h = hash32 ((juce::uint32) (base - row + 100000) * 2654435761u + (juce::uint32) (phase * 100.0f));
-        const float len = 6.0f + (float) (h % 33u);
-        g.setColour (juce::Colour (0xff9fe8ff).withAlpha (0.5f + 0.3f * e));
-        g.fillRect (r.getX() + 4.0f, y, juce::jmin (len, r.getWidth() - 8.0f), 1.6f);
-    }
-    if (std::sin (time * 5.0f) > 0.0f)
-    {
-        g.setColour (juce::Colour (0xff9fe8ff));
-        g.fillRect (r.getX() + 4.0f, r.getBottom() - 5.0f, 4.0f, 2.0f);
-    }
+    g.reduceClipRegion (brainShape, tf);
+    g.setColour (brainLight.withAlpha (0.12f * glow));
+    g.strokePath (brainFolds, juce::PathStrokeType (3.2f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded), tf);
+    g.setColour (brainLight.withAlpha (0.15f + 0.45f * glow));
+    g.strokePath (brainFolds, juce::PathStrokeType (1.1f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded), tf);
     g.restoreState();
-
-    g.setColour (juce::Colour (0xff6a737a));
-    g.drawRoundedRectangle (r, 3.0f, 1.2f);
 }
 
 //==============================================================================
@@ -1663,7 +1358,7 @@ void Mkvst04Editor::drawEffects (juce::Graphics& g)
         g.fillRect (getLocalBounds());
     }
 
-    auto lensFor = [&] (int key) { return roofPoint (key).x < sceneCentre.x ? lensWorldL : lensWorldR; };
+    auto brainFor = [&] (int key) { return roofPoint (key).x < sceneCentre.x ? brainWorldL : brainWorldR; };
     auto originFor = [&] (int key, juce::Point<float> from)
     {
         const auto d = roofPoint (key) - from;
@@ -1690,7 +1385,7 @@ void Mkvst04Editor::drawEffects (juce::Graphics& g)
         g.fillRect (juce::Rectangle<float> (roof.x - 14.0f, roof.y - 230.0f, 28.0f, 230.0f));
     };
 
-    // Dauerblitz, solange eine Note klingt: aus der Linse des Kopfes auf der Seite des Hauses
+    // Dauerblitz, solange eine Note klingt: aus dem Gehirn auf der Seite des Hauses
     for (int i = 0; i < numKeys; ++i)
     {
         const float glow = keyGlow[(size_t) i];
@@ -1698,30 +1393,30 @@ void Mkvst04Editor::drawEffects (juce::Graphics& g)
         const float pitch = pitchOf (i);
         const auto roof = roofPoint (i);
         impact (roof, noteColour (firstNote + i), glow);
-        drawBolt (g, originFor (i, lensFor (i)), roof, (juce::int64) i * 7919 + flickerFrame (pitch),
+        drawBolt (g, originFor (i, brainFor (i)), roof, (juce::int64) i * 7919 + flickerFrame (pitch),
                   glow, pitch, boltColour (pitch, 0.85f));
     }
 
-    // Blitz-Salve bei neuen Noten: aus beiden Köpfen, klingt schnell ab
+    // Blitz-Salve bei neuen Noten: aus beiden Gehirnen, klingt schnell ab
     for (const auto& f : flashes)
     {
         const float pitch = pitchOf (f.key);
         const int frame = flickerFrame (pitch);
         const auto roof = roofPoint (f.key);
         const auto col = boltColour (pitch, 0.85f);
-        drawBolt (g, originFor (f.key, lensWorldL), roof, (juce::int64) f.key * 131 + frame * 3 + 1, f.life, pitch, col);
-        drawBolt (g, originFor (f.key, lensWorldR), roof, (juce::int64) f.key * 197 + frame * 5 + 2, f.life, pitch, col);
+        drawBolt (g, originFor (f.key, brainWorldL), roof, (juce::int64) f.key * 131 + frame * 3 + 1, f.life, pitch, col);
+        drawBolt (g, originFor (f.key, brainWorldR), roof, (juce::int64) f.key * 197 + frame * 5 + 2, f.life, pitch, col);
     }
 
-    // Lichtbogen zwischen den beiden Köpfen, sobald es laut wird
+    // Lichtbogen zwischen den beiden Gehirnen, sobald es laut wird
     {
         const float e = juce::jlimit (0.0f, 1.0f, level * 9.0f);
         if (e > 0.05f)
-            drawBolt (g, lensWorldL + juce::Point<float> (16.0f, 0.0f), lensWorldR - juce::Point<float> (16.0f, 0.0f),
+            drawBolt (g, brainWorldL + juce::Point<float> (24.0f, 0.0f), brainWorldR - juce::Point<float> (24.0f, 0.0f),
                       90001 + (juce::int64) (time * 22.0f), 0.6f * e, 0.5f, boltColour (0.5f, 0.85f));
     }
 
-    // Funken aus den Köpfen
+    // Funken aus den Gehirnen
     for (const auto& sk : sparkles)
     {
         const float a = juce::jlimit (0.0f, 1.0f, sk.life / sk.maxLife);
@@ -1807,50 +1502,4 @@ void Mkvst04Editor::drawFarCity (juce::Graphics& g)
                                fogTeal.withAlpha (0.55f), 0.0f, barTop, false);
     g.setGradientFill (haze);
     g.fillPath (farBuildings);
-}
-
-// Oberflächenfinish der Roboter, begrenzt auf ihren Umriss:
-//  - gebürstetes Metall: feine waagrechte Linien mit leicht wechselnder Helligkeit
-//  - Umgebungsverdeckung: dunkle, weiche Ränder geben Volumen (breiter Strich, nur die Innenhälfte sichtbar)
-//  - Glanzlichter: weiche helle Flecken oben links auf Köpfen und Brust (Licht kommt von oben links)
-//  - Kantenlicht vom Himmel: türkisfarbener Schimmer an den Kanten
-void Mkvst04Editor::drawMetalFinish (juce::Graphics& g, float e)
-{
-    const auto bb = figureMask.getBounds();
-
-    g.saveState();
-    g.reduceClipRegion (figureMask, juce::AffineTransform());
-
-    int k = 0;
-    for (float y = bb.getY(); y < bb.getBottom(); y += 1.3f, ++k)
-    {
-        const float a = 0.02f + 0.05f * (float) (hash32 ((juce::uint32) k * 2654435761u) & 255u) / 255.0f;
-        g.setColour ((k & 1) ? juce::Colours::white.withAlpha (a) : juce::Colours::black.withAlpha (a));
-        g.drawHorizontalLine ((int) y, bb.getX(), bb.getRight());
-    }
-
-    g.setColour (juce::Colours::black.withAlpha (0.10f));
-    g.strokePath (figureMask, juce::PathStrokeType (34.0f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
-    g.setColour (juce::Colours::black.withAlpha (0.18f));
-    g.strokePath (figureMask, juce::PathStrokeType (14.0f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
-    g.setColour (juce::Colours::black.withAlpha (0.25f));
-    g.strokePath (figureMask, juce::PathStrokeType (5.0f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
-
-    auto spec = [&] (juce::Point<float> c, float rx, float ry, float a)
-    {
-        juce::ColourGradient gr (juce::Colours::white.withAlpha (a), c, juce::Colours::transparentWhite,
-                                 c.translated (rx, 0.0f), true);
-        g.setGradientFill (gr);
-        g.fillEllipse (c.x - rx, c.y - ry, rx * 2.0f, ry * 2.0f);
-    };
-    const float s = figureScale;
-    for (float side : { -1.0f, 1.0f })
-    {
-        spec (sceneCentre + juce::Point<float> (side * 70.0f * s, -138.0f * s), 30.0f * s, 16.0f * s, 0.16f);
-        spec (sceneCentre + juce::Point<float> (side * 75.0f * s, -60.0f * s), 40.0f * s, 22.0f * s, 0.12f);
-    }
-
-    g.setColour (fogTeal.brighter (0.6f).withAlpha (0.18f + 0.15f * e));
-    g.strokePath (figureMask, juce::PathStrokeType (2.0f), juce::AffineTransform::translation (1.5f, 1.5f));
-    g.restoreState();
 }

@@ -3,16 +3,16 @@
 Synthesizer (VST3 / Audio Unit / Standalone) mit JUCE 8.
  Standard-DSP-Formeln, eigene Architektur, eigene Oberfläche.
 
-![mkvst0_4: zwei Cyborg-Figuren über der Skyline, Oszillatoren, LFO und Effekte](docs/screenshot.png)
+![mkvst0_4: zwei schwarze Figuren mit leuchtenden Gehirnen über der Skyline, Oszillatoren, LFO und Effekte](docs/screenshot.png)
 
 ## Download
 
 | System | Installer |
 |---|---|
-| Windows (64 Bit) | [mkvst0_4-0.4.0-Windows-Setup.exe](https://github.com/mopamin/mkvst/releases/latest/download/mkvst0_4-0.4.0-Windows-Setup.exe) |
-| macOS (Apple Silicon + Intel) | [mkvst0_4-0.4.0-macOS.pkg](https://github.com/mopamin/mkvst/releases/latest/download/mkvst0_4-0.4.0-macOS.pkg) |
-| Linux (Debian/Ubuntu) | [mkvst0_4-0.4.0-Linux-amd64.deb](https://github.com/mopamin/mkvst/releases/latest/download/mkvst0_4-0.4.0-Linux-amd64.deb) |
-| Linux (andere) | [mkvst0_4-0.4.0-Linux-x86_64.tar.gz](https://github.com/mopamin/mkvst/releases/latest/download/mkvst0_4-0.4.0-Linux-x86_64.tar.gz), entpacken und `./install.sh` starten |
+| Windows (64 Bit) | [mkvst0_4-0.5.0-Windows-Setup.exe](https://github.com/mopamin/mkvst/releases/latest/download/mkvst0_4-0.5.0-Windows-Setup.exe) |
+| macOS (Apple Silicon + Intel) | [mkvst0_4-0.5.0-macOS.pkg](https://github.com/mopamin/mkvst/releases/latest/download/mkvst0_4-0.5.0-macOS.pkg) |
+| Linux (Debian/Ubuntu) | [mkvst0_4-0.5.0-Linux-amd64.deb](https://github.com/mopamin/mkvst/releases/latest/download/mkvst0_4-0.5.0-Linux-amd64.deb) |
+| Linux (andere) | [mkvst0_4-0.5.0-Linux-x86_64.tar.gz](https://github.com/mopamin/mkvst/releases/latest/download/mkvst0_4-0.5.0-Linux-x86_64.tar.gz), entpacken und `./install.sh` starten |
 
 Alle Versionen: [Releases](https://github.com/mopamin/mkvst/releases)
 
@@ -61,16 +61,16 @@ Standalone-App zum Testen ohne DAW: `build/Mkvst04_artefacts/Release/Standalone/
 
 ## Aussehen
 
-Zwei Cyborg-Figuren ohne Arme mit gemeinsamem Kopf nach dem Referenzbild: Brust mit LED-Pegeln (links) und
-Terminals (rechts), Platinen, Mini-Display, Lüfter im Achteck, Kragen und Beine; Köpfe mit Kühlrippen, Platinen,
-verschiedenen Kameras, Ohr-Scheiben und kupferfarbenem Prozessor über den Kabelbündeln.
+Zwei schwarze Figuren ohne Arme mit gemeinsamem Kopf nach dem Referenzbild, reine Silhouetten mit feinem
+Kantenlicht, von unten zieht Nebel hoch. In jedem Kopf schimmert ein rosa Gehirn durch, das im Takt der DAW pocht:
+Läuft der Transport, sitzt der Puls genau auf den Vierteln; sonst pocht es im zuletzt bekannten Tempo weiter
+(Standalone oder Host ohne Tempo: 120 BPM). Bei gespielten Noten leuchtet das Gehirn auf seiner Seite auf.
 
-Für einen fotoähnlichen Eindruck: gebürstetes Metall, weiche Schatten an den Rändern (Volumen), Glanzlichter,
-türkises Kantenlicht vom Himmel, eine dunstige zweite Stadt am Horizont (Tiefe), Hausfassaden mit Schattenseite,
+Für einen fotoähnlichen Eindruck: eine dunstige zweite Stadt am Horizont (Tiefe), Hausfassaden mit Schattenseite,
 Gesims, Stockwerkslinien, dunklen Glasfenstern und leuchtenden Fenstern mit Lichtschein, dazu feines Filmkorn.
 Alles wird als Vektorgrafik gezeichnet und ist deshalb auf Retina-Bildschirmen gestochen scharf.
 
-Beim Spielen zucken Blitze aus der Hauptkamera des Kopfes zum Dach des Hauses, Funken sprühen, der Himmel
+Beim Spielen zucken Blitze aus den Gehirnen zum Dach des Hauses, Funken sprühen, der Himmel
 leuchtet auf, die Nachbarhäuser leuchten mit.
 
 ## Dateien

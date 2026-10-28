@@ -90,6 +90,22 @@ void Mkvst04Processor::processBlock (juce::AudioBuffer<float>& buffer, juce::Mid
     juce::ScopedNoDenormals noDenormals;
     buffer.clear();
 
+    // Tempo und Position vom Host merken; ohne Angabe bleibt das letzte Tempo (Standard 120 BPM)
+    bool playing = false;
+    if (auto* ph = getPlayHead())
+        if (const auto pos = ph->getPosition())
+        {
+            if (const auto bpm = pos->getBpm())
+                hostBpm.store (*bpm);
+            if (const auto ppq = pos->getPpqPosition(); ppq && pos->getIsPlaying())
+            {
+                hostPpq.store (*ppq);
+                hostPpqStamp.store (juce::Time::getMillisecondCounterHiRes());
+                playing = true;
+            }
+        }
+    hostPlaying.store (playing);
+
     // Klicks im Notenring in MIDI umwandeln und eingehendes MIDI für die Anzeige merken
     keyboardState.processNextMidiBuffer (midi, 0, buffer.getNumSamples(), true);
 

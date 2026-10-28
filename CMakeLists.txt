@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.22)
-project(Mkvst04 VERSION 0.4.0)
+project(Mkvst04 VERSION 0.5.0)
 
 # JUCE (Version 8) liegt als Unterordner "JUCE" neben dieser Datei
 add_subdirectory(JUCE)
@@ -13,7 +13,7 @@ juce_add_plugin(Mkvst04
     PLUGIN_CODE Mk04
     FORMATS VST3 AU Standalone
     COPY_PLUGIN_AFTER_BUILD TRUE
-    VERSION 0.4.0
+    VERSION 0.5.0
     PLUGIN_NAME "mkvst0_4"
     PRODUCT_NAME "mkvst0_4"
     DESCRIPTION "mkvst0_4"

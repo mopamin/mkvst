@@ -115,8 +115,13 @@ jobs:
             dist/*.deb
             dist/*.tar.gz
 
+  # Das Release wartet nicht auf macOS: bekommt der Mac-Build keinen Runner oder schlägt er fehl, erscheinen
+  # Windows und Linux trotzdem. Ein späterer erneuter Lauf ("Re-run all jobs") ergänzt das .pkg im selben Release.
   release:
-    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
+    if: >-
+      always() && github.event_name == 'push' &&
+      (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')) &&
+      needs.windows.result == 'success' && needs.linux.result == 'success'
     needs: [macos, windows, linux]
     runs-on: ubuntu-latest
     permissions:

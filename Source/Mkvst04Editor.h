@@ -124,6 +124,7 @@ private:
     float headFlashL = 0.0f, headFlashR = 0.0f;           // Gehirne leuchten bei Noten ihrer Seite auf
     float beatPhase = 0.0f, brainPulse = 0.0f;            // Phase im Viertel (0..1) und Puls daraus
     int heldKey = -1;
+    bool rendererChosen = false;                          // Windows: Software-Renderer schon gesetzt
     juce::Random rng;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (Mkvst04Editor)

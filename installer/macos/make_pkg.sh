@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Packt VST3, Audio Unit und Standalone-App in einen macOS-Installer (.pkg).
 # Aufruf:  installer/macos/make_pkg.sh <Artefakt-Ordner> <Version> <Ausgabe-Ordner>
-# Beispiel: installer/macos/make_pkg.sh build/Mkvst04_artefacts/Release 0.5.0 dist
+# Beispiel: installer/macos/make_pkg.sh build/Mkvst04_artefacts/Release 0.5.1 dist
 set -euo pipefail
 
 ART="$1"; VERSION="$2"; OUT="$3"

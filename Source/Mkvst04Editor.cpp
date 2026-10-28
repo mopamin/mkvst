@@ -665,6 +665,20 @@ void Mkvst04Editor::timerCallback()
     const float dt = 1.0f / 60.0f;
     time += dt;
 
+   #if JUCE_WINDOWS
+    // Unter Windows zeichnet JUCE 8 standardmäßig mit Direct2D. Dort sehen Verläufe, Clips und das
+    // gekachelte Filmkorn anders aus (Kurven gedimmt, Gehirne und Fensterlichter fehlen). Deshalb wie auf
+    // Mac und Linux den Software-Renderer nehmen, sobald das Fenster existiert.
+    if (! rendererChosen)
+        if (auto* peer = getPeer())
+        {
+            const int sw = peer->getAvailableRenderingEngines().indexOf ("Software Renderer");
+            if (sw >= 0 && peer->getCurrentRenderingEngine() != sw)
+                peer->setCurrentRenderingEngine (sw);
+            rendererChosen = true;
+        }
+   #endif
+
     // Takt der DAW: läuft der Transport, folgt die Phase der PPQ-Position (seit dem letzten Audio-Block
     // mit dem Tempo weitergerechnet), sonst läuft sie frei im zuletzt bekannten Tempo (Standard 120 BPM).
     {
@@ -784,7 +798,7 @@ void Mkvst04Editor::paint (juce::Graphics& g)
     drawFog (g);
 
     // Filmkorn über der ganzen Szene (wechselt jedes Bild seine Lage, wirkt wie ein Foto)
-    g.setTiledImageFill (grain, rng.nextInt (256), rng.nextInt (256), 0.07f);
+    g.setTiledImageFill (grain, rng.nextInt (256), rng.nextInt (256), 1.0f);     // Deckkraft 7 % steckt im Bild
     g.fillRect (0, 0, getWidth(), panelTop);
     drawPanels (g);
     drawEffects (g);
@@ -876,8 +890,10 @@ void Mkvst04Editor::drawFigures (juce::Graphics& g)
 
     // Kanten zuerst: feines Kantenlicht vom Himmel, dazu elektrischer Schein bei Energie. Die Silhouette
     // wird danach darüber gefüllt, so bleibt nur die äußere Hälfte stehen (keine Kanten der Einzelteile).
-    g.setColour (fogTeal.brighter (0.4f).withAlpha (0.35f));
-    g.strokePath (figureMask, juce::PathStrokeType (2.0f));
+    g.setColour (fogTeal.brighter (0.4f).withAlpha (0.12f));
+    g.strokePath (figureMask, juce::PathStrokeType (9.0f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
+    g.setColour (fogTeal.brighter (0.7f).withAlpha (0.7f));
+    g.strokePath (figureMask, juce::PathStrokeType (3.0f));
     g.setColour (electric.withAlpha (0.03f + 0.18f * e));
     g.strokePath (figureMask, juce::PathStrokeType (8.0f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
     g.setColour (electric.withAlpha (0.05f + 0.35f * e));
@@ -901,7 +917,7 @@ void Mkvst04Editor::drawFigures (juce::Graphics& g)
     // Nebel zieht von unten an den Figuren hoch
     {
         juce::ColourGradient haze (fogTeal.withAlpha (0.0f), 0.0f, sceneCentre.y - 60.0f,
-                                   fogTeal.withAlpha (0.32f), 0.0f, sceneCentre.y + 230.0f, false);
+                                   fogTeal.withAlpha (0.42f), 0.0f, sceneCentre.y + 230.0f, false);
         g.setGradientFill (haze);
         g.fillPath (figureMask);
     }
@@ -1486,7 +1502,7 @@ void Mkvst04Editor::buildGrain()
         for (int x = 0; x < 256; ++x)
         {
             const auto v = (juce::uint8) r.nextInt (256);
-            grain.setPixelAt (x, y, juce::Colour (v, v, v, (juce::uint8) (40 + r.nextInt (120))));
+            grain.setPixelAt (x, y, juce::Colour (v, v, v, (juce::uint8) ((40 + r.nextInt (120)) * 7 / 100)));
         }
 }
 

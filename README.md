@@ -9,10 +9,10 @@ Synthesizer (VST3 / Audio Unit / Standalone) mit JUCE 8.
 
 | System | Installer |
 |---|---|
-| Windows (64 Bit) | [mkvst0_4-0.5.0-Windows-Setup.exe](https://github.com/mopamin/mkvst/releases/latest/download/mkvst0_4-0.5.0-Windows-Setup.exe) |
-| macOS (Apple Silicon + Intel) | [mkvst0_4-0.5.0-macOS.pkg](https://github.com/mopamin/mkvst/releases/latest/download/mkvst0_4-0.5.0-macOS.pkg) |
-| Linux (Debian/Ubuntu) | [mkvst0_4-0.5.0-Linux-amd64.deb](https://github.com/mopamin/mkvst/releases/latest/download/mkvst0_4-0.5.0-Linux-amd64.deb) |
-| Linux (andere) | [mkvst0_4-0.5.0-Linux-x86_64.tar.gz](https://github.com/mopamin/mkvst/releases/latest/download/mkvst0_4-0.5.0-Linux-x86_64.tar.gz), entpacken und `./install.sh` starten |
+| Windows (64 Bit) | [mkvst0_4-0.5.1-Windows-Setup.exe](https://github.com/mopamin/mkvst/releases/latest/download/mkvst0_4-0.5.1-Windows-Setup.exe) |
+| macOS (Apple Silicon + Intel) | [mkvst0_4-0.5.1-macOS.pkg](https://github.com/mopamin/mkvst/releases/latest/download/mkvst0_4-0.5.1-macOS.pkg) |
+| Linux (Debian/Ubuntu) | [mkvst0_4-0.5.1-Linux-amd64.deb](https://github.com/mopamin/mkvst/releases/latest/download/mkvst0_4-0.5.1-Linux-amd64.deb) |
+| Linux (andere) | [mkvst0_4-0.5.1-Linux-x86_64.tar.gz](https://github.com/mopamin/mkvst/releases/latest/download/mkvst0_4-0.5.1-Linux-x86_64.tar.gz), entpacken und `./install.sh` starten |
 
 Alle Versionen: [Releases](https://github.com/mopamin/mkvst/releases)
 

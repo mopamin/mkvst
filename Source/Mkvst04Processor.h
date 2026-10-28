@@ -33,7 +33,11 @@ public:
 
     juce::AudioProcessorValueTreeState apvts;
     juce::MidiKeyboardState keyboardState;     // Klicks im Notenring + MIDI von außen
-    std::atomic<float> level { 0.0f };         // Lautstärke fürs Gehirn-Pulsieren
+    std::atomic<float> level { 0.0f };         // Lautstärke fürs Pochen der Figuren
+
+    // Takt vom Host (für die pochenden Gehirne): Tempo, PPQ-Position zum Zeitpunkt hostPpqStamp (ms)
+    std::atomic<double> hostBpm { 120.0 }, hostPpq { 0.0 }, hostPpqStamp { 0.0 };
+    std::atomic<bool> hostPlaying { false };
 
 private:
     static juce::AudioProcessorValueTreeState::ParameterLayout createLayout();

@@ -1,9 +1,9 @@
 ; Inno-Setup-Skript fuer mkvst0_4 (Windows, 64 Bit)
 ; Wird vom Workflow .github/workflows/installer.yml aufgerufen:
-;   ISCC.exe /DAppVersion=0.4.0 /DBuildDir=<...>\build\Mkvst04_artefacts\Release mkvst.iss
+;   ISCC.exe /DAppVersion=0.5.0 /DBuildDir=<...>\build\Mkvst04_artefacts\Release mkvst.iss
 
 #ifndef AppVersion
-  #define AppVersion "0.4.0"
+  #define AppVersion "0.5.0"
 #endif
 #ifndef BuildDir
   #define BuildDir "..\..\build\Mkvst04_artefacts\Release"

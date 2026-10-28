@@ -11,10 +11,10 @@ public:
                            float startAngle, float endAngle, juce::Slider&) override;
 };
 
-// Oberfläche im Stil eines düsteren Miniatur-Szenarios: Zwei riesige Cyborg-Figuren mit gemeinsamem Kopf
-// (Kameralinsen, Platinen, Kabel, LED-Pegel, Terminals, Lüfter) stehen hinter einer nächtlichen Skyline.
+// Oberfläche im Stil eines düsteren Miniatur-Szenarios: Zwei riesige schwarze Figuren mit gemeinsamem Kopf
+// stehen hinter einer nächtlichen Skyline; in jedem Kopf pocht ein Gehirn im Takt der DAW.
 // Jede der 36 Noten (C2..B4) ist ein Hochhaus. Links über der Skyline sitzen die Oszillatoren, rechts der
-// LFO; unten Filter, Effekte und Hüllkurve. Beim Spielen zucken Blitze aus den Köpfen zum Dach des Hauses.
+// LFO; unten Filter, Effekte und Hüllkurve. Beim Spielen zucken Blitze aus den Gehirnen zum Dach des Hauses.
 // Klick auf eine Figur = Klang mutieren.
 class Mkvst04Editor : public juce::AudioProcessorEditor, private juce::Timer
 {
@@ -69,15 +69,9 @@ private:
 
     void drawBackground (juce::Graphics&);
     void drawFarCity (juce::Graphics&);
-    void drawMetalFinish (juce::Graphics&, float e);
     void drawFigures (juce::Graphics&);
-    void drawBodyDetails (juce::Graphics&, bool left, float e);
-    void drawHeadDetails (juce::Graphics&, float e);
-    void drawHeadBlock (juce::Graphics&, bool left, float e, float flash);
-    void drawFan (juce::Graphics&, juce::Point<float> c, float r, float rot);
-    void drawMeter (juce::Graphics&, juce::Rectangle<float> r, float phase, float e);
-    void drawScreen (juce::Graphics&, juce::Rectangle<float> r, float phase, float e);
-    void drawLens (juce::Graphics&, juce::Point<float> c, float r, float glow);
+    void drawBrain (juce::Graphics&, const juce::AffineTransform& tfHead, bool mirrored, float flash);
+    float brainGlow (float flash) const;
     void drawSkyline (juce::Graphics&);
     void drawFog (juce::Graphics&);
     void drawPanels (juce::Graphics&);
@@ -110,8 +104,9 @@ private:
     juce::Path farBuildings, farWindows;                // ferne Stadt (Kulisse)
     juce::Image grain;                                  // Filmkorn
     juce::Path figureMask;                              // aktuelle Umrisse beider Figuren (pro Frame)
-    juce::Point<float> lensWorldL, lensWorldR;          // Blitz-Ursprünge: die großen Kameralinsen
-    std::array<float, 2> fanRot {};
+    juce::Path brainShape, brainFolds, brainFissure;    // Gehirn im linken Kopf (rechts gespiegelt)
+    const juce::Point<float> brainCentreL { -56.3f, -117.0f };
+    juce::Point<float> brainWorldL, brainWorldR;        // Blitz-Ursprünge: die Gehirne
 
     // Skyline
     std::array<float, numKeys> bldHeight {}, stepH {};
@@ -126,7 +121,8 @@ private:
     std::array<float, numKeys> keyGlow {};
     float level = 0.0f, time = 0.0f;
     float kickL = 0.0f, kickR = 0.0f, kickHead = 0.0f, glitch = 0.0f, skyFlash = 0.0f;
-    float headFlashL = 0.0f, headFlashR = 0.0f;
+    float headFlashL = 0.0f, headFlashR = 0.0f;           // Gehirne leuchten bei Noten ihrer Seite auf
+    float beatPhase = 0.0f, brainPulse = 0.0f;            // Phase im Viertel (0..1) und Puls daraus
     int heldKey = -1;
     juce::Random rng;
 

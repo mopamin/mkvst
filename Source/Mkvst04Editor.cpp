@@ -1,5 +1,6 @@
 #include "Mkvst04Editor.h"
 #include <algorithm>
+#include <cstring>
 
 namespace
 {
@@ -36,29 +37,40 @@ namespace
     const juce::Colour brainPink  (0xffff6ec0);     // Gehirn: sanftes Rosa
     const juce::Colour brainLight (0xffffc4e8);     // Windungen, heller
 
-    struct KnobInfo { const char* id; const char* name; const char* suffix; int group; int decimals; };
+    // tab: -1 = immer sichtbar, sonst Reiter im Feld (Oszillatoren: 0 OSC 1, 1 OSC 2, 2 MIX; Modulation: 0 LFO, 1 ENV)
+    struct KnobInfo { const char* id; const char* name; const char* suffix; int group; int decimals; int tab; };
     const KnobInfo knobInfo[] =
     {
         // Gruppe 0: unten (Filter, Effekte, Hüllkurve)
-        { "dark", "Dunkel", "", 0, 2 },        { "klack", "Klack", "", 0, 2 },
-        { "knatter", "Knatter", "", 0, 2 },    { "mystery", "Mystik", "", 0, 2 },
-        { "clockRate", "Uhr-Takt", " Hz", 0, 1 }, { "clockDepth", "Uhr-Tiefe", "", 0, 2 },
-        { "attack", "Attack", " s", 0, 2 },    { "release", "Release", " s", 0, 2 },
-        { "gain", "Gain", "", 0, 2 },
-        // Gruppe 1: Oszillatoren
-        { "osc1Oct", "Osc1 Okt", "", 1, 0 },   { "osc2Oct", "Osc2 Okt", "", 1, 0 },
-        { "osc2Detune", "Detune", " ct", 1, 0 }, { "oscMix", "Mix", "", 1, 2 },
-        { "sub", "Sub", "", 1, 2 },
-        // Gruppe 2: LFO
-        { "lfoRate", "Rate", " Hz", 2, 2 },    { "lfoFilter", "Filter", "", 2, 2 },
-        { "lfoPitch", "Pitch", "", 2, 2 },     { "lfoAmp", "Amp", "", 2, 2 },
+        { "dark", "Dunkel", "", 0, 2, -1 },        { "klack", "Klack", "", 0, 2, -1 },
+        { "knatter", "Knatter", "", 0, 2, -1 },    { "mystery", "Mystik", "", 0, 2, -1 },
+        { "clockRate", "Uhr-Takt", " Hz", 0, 1, -1 }, { "clockDepth", "Uhr-Tiefe", "", 0, 2, -1 },
+        { "attack", "Attack", " s", 0, 2, -1 },    { "release", "Release", " s", 0, 2, -1 },
+        { "gain", "Gain", "", 0, 2, -1 },
+        // Gruppe 1: Oszillatoren, Reiter OSC 1
+        { "osc1Oct", "Oktave", "", 1, 0, 0 },      { "osc1Semi", "Semi", "", 1, 0, 0 },
+        { "osc1Cent", "Cent", " ct", 1, 0, 0 },    { "osc1Sym", "Symmetrie", "", 1, 2, 0 },
+        // Reiter OSC 2
+        { "osc2Oct", "Oktave", "", 1, 0, 1 },      { "osc2Semi", "Semi", "", 1, 0, 1 },
+        { "osc2Detune", "Cent", " ct", 1, 0, 1 },  { "osc2Sym", "Symmetrie", "", 1, 2, 1 },
+        // Reiter MIX
+        { "oscMix", "1 Bal 2", "", 1, 2, 2 },      { "sub", "Sub", "", 1, 2, 2 },
+        { "oscSpread", "Spread", "", 1, 2, 2 },    { "oscFm", "FM 2>1", "", 1, 2, 2 },
+        { "oscAm", "AM 2>1", "", 1, 2, 2 },
+        // Gruppe 2: Modulation, Reiter LFO
+        { "lfoRate", "Rate", " Hz", 2, 2, 0 },     { "lfoFilter", "Filter", "", 2, 2, 0 },
+        { "lfoPitch", "Pitch", "", 2, 2, 0 },      { "lfoAmp", "Amp", "", 2, 2, 0 },
+        // Reiter ENV (Hüllkurve ADSFR; Attack und Release sind dieselben Parameter wie unten)
+        { "attack", "Attack", " s", 2, 2, 1 },     { "envDecay", "Decay", " s", 2, 2, 1 },
+        { "envSustain", "Sustain", "", 2, 2, 1 },  { "envFade", "Fade", " s", 2, 2, 1 },
+        { "release", "Release", " s", 2, 2, 1 },   { "envCurve", "Kurve", "", 2, 2, 1 },
         // Gruppe 3: Dark Echo
-        { "echoTime", "Time", " ms", 3, 0 },   { "echoFb", "Feedback", "", 3, 2 },
-        { "echoDark", "Dark", "", 3, 2 },      { "echoDrift", "Drift", "", 3, 2 },
-        { "echoMix", "Mix", "", 3, 2 },
+        { "echoTime", "Time", " ms", 3, 0, -1 },   { "echoFb", "Feedback", "", 3, 2, -1 },
+        { "echoDark", "Dark", "", 3, 2, -1 },      { "echoDrift", "Drift", "", 3, 2, -1 },
+        { "echoMix", "Mix", "", 3, 2, -1 },
         // Gruppe 4: Void Reverb
-        { "revSize", "Size", "", 4, 2 },       { "revDamp", "Damp", "", 4, 2 },
-        { "revSpook", "Spook", "", 4, 2 },     { "revMix", "Mix", "", 4, 2 }
+        { "revSize", "Size", "", 4, 2, -1 },       { "revDamp", "Damp", "", 4, 2, -1 },
+        { "revSpook", "Spook", "", 4, 2, -1 },     { "revMix", "Mix", "", 4, 2, -1 }
     };
 
     bool isBlackKey (int note)
@@ -97,10 +109,16 @@ namespace
         return h;
     }
 
-    // Wellenform aus der Phase: 0 Sinus, 1 Säge, 2 Rechteck, 3 Dreieck, 4 Sample & Hold (8 Stufen/Periode)
-    float waveAt (int type, float p, int seed)
+    // Wellenform aus der Phase: 0 Sinus, 1 Säge, 2 Rechteck, 3 Dreieck, 4 Sample & Hold (8 Stufen/Periode).
+    // sym = Symmetrie wie im Klang (Mkvst04Voice.h): Rechteck -> Pulsbreite, sonst geknickte Phase.
+    float waveAt (int type, float p, int seed, float sym = 0.5f)
     {
         p -= std::floor (p);
+        sym = juce::jlimit (0.05f, 0.95f, sym);
+        if (type == 2)
+            return p < sym ? 1.0f : -1.0f;
+        if (type != 4)
+            p = p < sym ? 0.5f * p / sym : 0.5f + 0.5f * (p - sym) / (1.0f - sym);
         switch (type)
         {
             case 0:  return std::sin (twoPi * p);
@@ -111,14 +129,15 @@ namespace
         }
     }
 
-    juce::Path wavePath (int type, juce::Rectangle<float> r, float cycles, float phase, float amp, int seed)
+    juce::Path wavePath (int type, juce::Rectangle<float> r, float cycles, float phase, float amp, int seed,
+                         float sym = 0.5f)
     {
         juce::Path p;
         const int n = juce::jmax (24, (int) r.getWidth());
         for (int i = 0; i <= n; ++i)
         {
             const float t = (float) i / (float) n;
-            const float y = r.getCentreY() - waveAt (type, cycles * t + phase, seed) * amp * r.getHeight() * 0.45f;
+            const float y = r.getCentreY() - waveAt (type, cycles * t + phase, seed, sym) * amp * r.getHeight() * 0.45f;
             if (i == 0) p.startNewSubPath (r.getX(), y); else p.lineTo (r.getX() + r.getWidth() * t, y);
         }
         return p;
@@ -351,6 +370,7 @@ Mkvst04Editor::Mkvst04Editor (Mkvst04Processor& p)
         };
     }
 
+    applyTabs();
     buildFigures();
     buildSkyline();
     buildGrain();
@@ -508,9 +528,29 @@ void Mkvst04Editor::resized()
         }
     };
     std::array<std::vector<Knob*>, 5> grp;
+    std::array<std::vector<Knob*>, 3> oscTabs;          // Oszillator-Reiter OSC 1, OSC 2, MIX
+    std::array<std::vector<Knob*>, 2> modTabs;          // Modulations-Reiter LFO, ENV
     for (size_t i = 0; i < knobs.size(); ++i)
-        grp[(size_t) knobInfo[i].group].push_back (&knobs[i]);
-    auto& g0 = grp[0]; auto& g1 = grp[1]; auto& g2 = grp[2];
+    {
+        const auto& info = knobInfo[i];
+        if (info.group == 1)      oscTabs[(size_t) info.tab].push_back (&knobs[i]);
+        else if (info.group == 2) modTabs[(size_t) info.tab].push_back (&knobs[i]);
+        else                      grp[(size_t) info.group].push_back (&knobs[i]);
+    }
+    auto& g0 = grp[0];
+
+    // Reiter in der Kopfzeile der Felder (rechts, vor der Aktivitäts-LED)
+    auto tabRow = [] (juce::Rectangle<float> panelR, int n, float w)
+    {
+        std::vector<juce::Rectangle<float>> v;
+        const float x0 = panelR.getRight() - 46.0f - (float) n * (w + 4.0f);
+        for (int k = 0; k < n; ++k)
+            v.push_back ({ x0 + (float) k * (w + 4.0f), panelR.getY() + 7.0f, w, 19.0f });
+        return v;
+    };
+    oscTabR = tabRow (oscPanel, 3, 52.0f);
+    modTabR = tabRow (lfoPanel, 2, 52.0f);
+    envScope = lfoScope.withBottom (selectors[2].r.getBottom());
 
     // untere Leiste: Reihe 1 (Filter, Effekte, Hüllkurve), Reihe 2 (Echo und Reverb)
     place (juce::Rectangle<int> (4, panelTop + 6, getWidth() - 8, 124), (int) g0.size(), g0);
@@ -523,8 +563,42 @@ void Mkvst04Editor::resized()
         place (juce::Rectangle<int> (4, fxY + 22, cw * 5, fxH - 22), 5, grp[3]);
         place (juce::Rectangle<int> (4 + cw * 5, fxY + 22, cw * 4, fxH - 22), 4, grp[4]);
     }
-    place (juce::Rectangle<int> ((int) oscPanel.getX() + 12, (int) oscPanel.getY() + 172, 356, 116), (int) g1.size(), g1);
-    place (juce::Rectangle<int> ((int) lfoPanel.getX() + 12, (int) lfoPanel.getY() + 198, 356, 100), (int) g2.size(), g2);
+    // Oszillator-Reiter: immer 5 Spalten; auf OSC 1 / OSC 2 trägt die fünfte Spalte die LED-Schalter
+    const juce::Rectangle<int> oscRow ((int) oscPanel.getX() + 12, (int) oscPanel.getY() + 172, 356, 116);
+    const int oscCol = oscRow.getWidth() / 5;
+    for (auto& t : oscTabs)
+        place (oscRow.withWidth (oscCol * (int) t.size()), (int) t.size(), t);
+    {
+        const float tx = (float) (oscRow.getX() + oscCol * 4), ty = (float) oscRow.getY();
+        toggles[0].r = { tx, ty + 30.0f, (float) oscCol, 40.0f };          // OSC 1: Free-run
+        toggles[1].r = { tx, ty + 6.0f,  (float) oscCol, 40.0f };          // OSC 2: Sync
+        toggles[2].r = { tx, ty + 56.0f, (float) oscCol, 40.0f };          // OSC 2: Free-run
+    }
+    place (juce::Rectangle<int> ((int) lfoPanel.getX() + 12, (int) lfoPanel.getY() + 198, 356, 100), 4, modTabs[0]);
+    place (juce::Rectangle<int> ((int) lfoPanel.getX() + 12, (int) lfoPanel.getY() + 178, 356, 112), 6, modTabs[1]);
+}
+
+void Mkvst04Editor::applyTabs()
+{
+    for (size_t i = 0; i < knobs.size(); ++i)
+    {
+        const auto& info = knobInfo[i];
+        const bool show = info.group == 1 ? info.tab == oscTab
+                        : info.group == 2 ? info.tab == modTab
+                        : true;
+        knobs[i].slider.setVisible (show);
+        knobs[i].label.setVisible (show);
+    }
+}
+
+float Mkvst04Editor::glowOf (std::initializer_list<const char*> ids) const
+{
+    float sum = 0.0f;
+    for (size_t i = 0; i < knobs.size(); ++i)
+        for (auto* id : ids)
+            if (std::strcmp (knobInfo[i].id, id) == 0)
+                sum += knobGlow[i];
+    return sum;
 }
 
 //==============================================================================
@@ -570,9 +644,40 @@ int Mkvst04Editor::keyAt (juce::Point<float> p, bool columnOnly) const
 
 void Mkvst04Editor::mouseDown (const juce::MouseEvent& e)
 {
+    // Reiter
+    for (size_t k = 0; k < oscTabR.size(); ++k)
+        if (oscTabR[k].contains (e.position))
+        {
+            oscTab = (int) k;  oscTabGlow = 1.0f;  activity[1] = 1.0f;
+            applyTabs();
+            return;
+        }
+    for (size_t k = 0; k < modTabR.size(); ++k)
+        if (modTabR[k].contains (e.position))
+        {
+            modTab = (int) k;  modTabGlow = 1.0f;  activity[2] = 1.0f;
+            applyTabs();
+            return;
+        }
+
+    // LED-Schalter (nur auf ihrem Reiter)
+    for (auto& t : toggles)
+        if (t.tab == oscTab && t.r.contains (e.position))
+        {
+            if (auto* p = proc.apvts.getParameter (t.id))
+            {
+                p->beginChangeGesture();
+                p->setValueNotifyingHost (p->getValue() > 0.5f ? 0.0f : 1.0f);
+                p->endChangeGesture();
+            }
+            t.glow = 1.0f;
+            activity[1] = 1.0f;
+            return;
+        }
+
     // Wellenform-Wähler
-    for (auto& s : selectors)
-        if (s.r.contains (e.position))
+    for (size_t i = 0; i < selectors.size(); ++i)
+        if (auto& s = selectors[i]; selectorVisible (i) && s.r.contains (e.position))
         {
             const int idx = juce::jlimit (0, s.count - 1, (int) ((e.position.x - s.r.getX()) / (s.r.getWidth() / (float) s.count)));
             setChoice (s.id, idx, s.count);
@@ -616,7 +721,7 @@ void Mkvst04Editor::mouseUp (const juce::MouseEvent&)
 void Mkvst04Editor::mutate()
 {
     static const char* ids[] = { "dark", "klack", "knatter", "mystery", "clockRate", "clockDepth", "release",
-                                 "oscMix", "sub", "lfoRate", "lfoFilter", "echoDark", "revDamp", "revSpook" };
+                                 "oscMix", "sub", "osc2Sym", "lfoRate", "lfoFilter", "echoDark", "revDamp", "revSpook" };
     for (auto* id : ids)
         if (auto* p = proc.apvts.getParameter (id))
         {
@@ -783,6 +888,8 @@ void Mkvst04Editor::timerCallback()
         k.slider.repaint();
     }
     for (auto& s : selectors) s.glow *= 0.93f;
+    for (auto& t : toggles) t.glow *= 0.93f;
+    oscTabGlow *= 0.93f;  modTabGlow *= 0.93f;
     for (auto& a : activity) a *= 0.95f;
 
     repaint();
@@ -1223,19 +1330,39 @@ void Mkvst04Editor::drawPanels (juce::Graphics& g)
     };
 
     panel (oscPanel, "OSCILLATORS", activity[1]);
-    panel (lfoPanel, "LFO  MODULATION", activity[2]);
+    panel (lfoPanel, "MODULATION", activity[2]);
+    drawTabs (g, oscTabR, { "OSC 1", "OSC 2", "MIX" }, oscTab, oscTabGlow);
+    drawTabs (g, modTabR, { "LFO", "ENV" }, modTab, modTabGlow);
     ledStrip ({ oscPanel.getX() + 12.0f, oscPanel.getBottom() - 20.0f, 356.0f, 6.0f });
     ledStrip ({ lfoPanel.getX() + 12.0f, lfoPanel.getBottom() - 20.0f, 356.0f, 6.0f });
 
-    // Oszillator-Scopes: Zyklen = 2^(Oktave + 2) (1 bis 16), die Kurve atmet mit der Lautstärke;
-    // Osc 2 driftet mit der Verstimmung langsam gegen Osc 1 (Schwebung)
-    const float oct1 = std::round (param ("osc1Oct")), oct2 = std::round (param ("osc2Oct"));
-    const float detune = param ("osc2Detune");
+    // Oszillator-Scopes: Zyklen = 2^(Oktave + Halbton/12 + 2), Symmetrie wie im Klang, die Kurve atmet mit
+    // der Lautstärke; Osc 2 driftet mit der Verstimmung langsam gegen Osc 1 (Schwebung). Der Scope des
+    // aktiven Reiters hat einen helleren Rahmen.
+    const float oct1 = std::round (param ("osc1Oct")) + std::round (param ("osc1Semi")) / 12.0f;
+    const float oct2 = std::round (param ("osc2Oct")) + std::round (param ("osc2Semi")) / 12.0f;
+    const float detune = param ("osc2Detune") - param ("osc1Cent");
     const float amp = 0.55f + 0.4f * e;
+    const float focus1 = oscTab == 0 ? 0.35f : 0.0f, focus2 = oscTab == 1 ? 0.35f : 0.0f;
     drawScope (g, osc1Scope, (int) std::round (param ("osc1Wave")), std::pow (2.0f, oct1 + 2.0f),
-               time * 0.6f, amp, juce::jmax (selectors[0].glow, knobGlow[9]), teal);
+               time * 0.6f, amp, focus1 + juce::jmax (selectors[0].glow, glowOf ({ "osc1Oct", "osc1Semi", "osc1Cent", "osc1Sym" })),
+               teal, param ("osc1Sym"));
     drawScope (g, osc2Scope, (int) std::round (param ("osc2Wave")), std::pow (2.0f, oct2 + 2.0f),
-               time * 0.6f + detune * 0.01f * time, amp, juce::jmax (selectors[1].glow, knobGlow[10] + knobGlow[11]), amber);
+               time * 0.6f + detune * 0.01f * time, amp,
+               focus2 + juce::jmax (selectors[1].glow, glowOf ({ "osc2Oct", "osc2Semi", "osc2Detune", "osc2Sym" })),
+               amber, param ("osc2Sym"));
+
+    for (const auto& t : toggles)
+        if (t.tab == oscTab)
+            drawToggle (g, t);
+
+    if (modTab == 1)
+    {
+        drawEnvelope (g, envScope);
+        for (size_t i = 0; i < 2; ++i)
+            drawSelector (g, selectors[i]);
+        return;
+    }
 
     // LFO-Scope: Zyklen steigen mit der Rate (1 bis 8); ein Punkt läuft mit der echten LFO-Phase mit
     const float rate = param ("lfoRate");
@@ -1247,7 +1374,7 @@ void Mkvst04Editor::drawPanels (juce::Graphics& g)
     const float cycles = std::floor (1.0f + 7.0f * norm);
     const float lfoPhase = time * rate;
     drawScope (g, lfoScope, lfoType[juce::jlimit (0, 4, shape)], cycles, 0.0f, 0.15f + 0.8f * depth,
-               juce::jmax (selectors[2].glow, knobGlow[14] + knobGlow[15] + knobGlow[16] + knobGlow[17]), electric);
+               juce::jmax (selectors[2].glow, glowOf ({ "lfoRate", "lfoFilter", "lfoPitch", "lfoAmp" })), electric);
     {
         const float fx = lfoPhase / cycles - std::floor (lfoPhase / cycles);
         const auto inner = lfoScope.reduced (4.0f, 0.0f);
@@ -1333,7 +1460,7 @@ void Mkvst04Editor::drawFxPanels (juce::Graphics& g)
 }
 
 void Mkvst04Editor::drawScope (juce::Graphics& g, juce::Rectangle<float> r, int type, float cycles, float phase,
-                             float amp, float glow, juce::Colour c)
+                             float amp, float glow, juce::Colour c, float sym)
 {
     g.setColour (juce::Colour (0xff060b0d));
     g.fillRoundedRectangle (r, 4.0f);
@@ -1343,7 +1470,7 @@ void Mkvst04Editor::drawScope (juce::Graphics& g, juce::Rectangle<float> r, int 
                     r.getX() + r.getWidth() * (float) k / 4.0f, r.getBottom() - 3.0f, 1.0f);
     g.drawLine (r.getX() + 3.0f, r.getCentreY(), r.getRight() - 3.0f, r.getCentreY(), 1.0f);
 
-    const auto p = wavePath (type, r.reduced (4.0f, 0.0f), cycles, phase, amp, 7);
+    const auto p = wavePath (type, r.reduced (4.0f, 0.0f), cycles, phase, amp, 7, sym);
     const juce::PathStrokeType round6 (6.0f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded);
     g.setColour (c.withAlpha (0.08f + 0.22f * juce::jlimit (0.0f, 1.0f, glow)));
     g.strokePath (p, round6);
@@ -1383,6 +1510,160 @@ void Mkvst04Editor::drawSelector (juce::Graphics& g, const Selector& s)
         g.setColour (lit ? amber.brighter (0.3f) : textCol.withAlpha (0.55f));
         g.strokePath (icon, juce::PathStrokeType (lit ? 1.8f : 1.2f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
     }
+}
+
+// Reiter: kleine Metallschilder in der Kopfzeile, der aktive leuchtet amber wie die Wellenform-Wähler.
+void Mkvst04Editor::drawTabs (juce::Graphics& g, const std::vector<juce::Rectangle<float>>& rects,
+                              const juce::StringArray& names, int current, float glow)
+{
+    g.setFont (juce::FontOptions (10.5f, juce::Font::bold));
+    for (size_t k = 0; k < rects.size(); ++k)
+    {
+        const auto r = rects[k];
+        const bool lit = (int) k == current;
+        g.setColour (juce::Colour (0xff0b1012));
+        g.fillRoundedRectangle (r, 4.0f);
+        if (lit)
+        {
+            g.setColour (amber.withAlpha (0.16f + 0.35f * glow));
+            g.fillRoundedRectangle (r, 4.0f);
+        }
+        g.setColour (lit ? amber : steelLine);
+        g.drawRoundedRectangle (r, 4.0f, lit ? 1.5f : 1.0f);
+        g.setColour (lit ? amber.brighter (0.3f) : textCol.withAlpha (0.6f));
+        g.drawText (names[(int) k], r, juce::Justification::centred, false);
+    }
+}
+
+// LED-Schalter: runder Knopf mit Ein-Symbol (Kreisbogen + Strich). An = leuchtet amber mit Lichthof.
+void Mkvst04Editor::drawToggle (juce::Graphics& g, const Toggle& t)
+{
+    const bool on = param (t.id) > 0.5f;
+    const auto c = juce::Point<float> (t.r.getCentreX(), t.r.getY() + 10.0f);
+    const float pulse = on ? 0.5f + 0.5f * std::sin (time * 3.0f) : 0.0f;
+
+    if (on || t.glow > 0.02f)
+    {
+        g.setColour (amber.withAlpha (0.10f + 0.12f * pulse + 0.3f * t.glow));
+        g.fillEllipse (juce::Rectangle<float> (30.0f, 30.0f).withCentre (c));
+    }
+    g.setColour (juce::Colour (0xff0b1012));
+    g.fillEllipse (juce::Rectangle<float> (19.0f, 19.0f).withCentre (c));
+    g.setColour (on ? amber : steelLine.interpolatedWith (amber, t.glow));
+    g.drawEllipse (juce::Rectangle<float> (19.0f, 19.0f).withCentre (c), 1.4f);
+
+    juce::Path icon;
+    icon.addCentredArc (c.x, c.y, 5.0f, 5.0f, 0.0f, 0.6f, twoPi - 0.6f, true);
+    icon.startNewSubPath (c.x, c.y - 6.5f);
+    icon.lineTo (c.x, c.y - 1.0f);
+    g.setColour (on ? amber.brighter (0.4f) : textCol.withAlpha (0.45f));
+    g.strokePath (icon, juce::PathStrokeType (1.5f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
+
+    g.setFont (juce::FontOptions (12.0f));
+    g.setColour (on ? amber.brighter (0.2f) : textCol);
+    g.drawText (t.name, juce::Rectangle<float> (t.r.getX(), c.y + 12.0f, t.r.getWidth(), 15.0f),
+                juce::Justification::centred, false);
+}
+
+// Hüllkurve ADSFR als Kurve, gleiche Formeln wie im Klang (Mkvst04Voice.h). Die Breite jeder Phase wächst
+// mit der Wurzel ihrer Dauer (kurze Phasen bleiben sichtbar, lange sprengen das Bild nicht); das Sustain-Stück
+// zeigt 2 Sekunden Halten, in denen der Pegel mit "Fade" absinkt. Ein Lichtpunkt läuft die Kurve entlang.
+void Mkvst04Editor::drawEnvelope (juce::Graphics& g, juce::Rectangle<float> r)
+{
+    const float a = param ("attack"), d = param ("envDecay"), sus = param ("envSustain");
+    const float fade = param ("envFade"), rel = param ("release"), curve = param ("envCurve");
+    const float c = 7.0f * curve;
+    auto shape = [c] (float x) { return c < 0.01f ? x : (1.0f - std::exp (-c * x)) / (1.0f - std::exp (-c)); };
+    const float holdShown = 2.0f;
+    const float susEnd = fade > 0.001f ? sus * juce::jmax (0.0f, 1.0f - holdShown / fade) : sus;
+
+    const float wA = std::sqrt (a), wD = std::sqrt (d), wS = std::sqrt (holdShown), wR = std::sqrt (rel);
+    const float total = wA + wD + wS + wR;
+    const auto inner = r.reduced (8.0f, 10.0f);
+    const float bx[] = { inner.getX(),
+                         inner.getX() + inner.getWidth() * wA / total,
+                         inner.getX() + inner.getWidth() * (wA + wD) / total,
+                         inner.getX() + inner.getWidth() * (wA + wD + wS) / total,
+                         inner.getRight() };
+    auto yOf = [&] (float v) { return inner.getBottom() - v * inner.getHeight(); };
+
+    // Pegel an Position u (0..1 über die ganze Breite)
+    auto levelAt = [&] (float px) -> float
+    {
+        if (px < bx[1]) return shape ((px - bx[0]) / juce::jmax (1.0f, bx[1] - bx[0]));
+        if (px < bx[2]) return 1.0f + (sus - 1.0f) * shape ((px - bx[1]) / juce::jmax (1.0f, bx[2] - bx[1]));
+        if (px < bx[3]) return sus + (susEnd - sus) * (px - bx[2]) / juce::jmax (1.0f, bx[3] - bx[2]);
+        return susEnd * (1.0f - shape ((px - bx[3]) / juce::jmax (1.0f, bx[4] - bx[3])));
+    };
+
+    g.setColour (juce::Colour (0xff060b0d));
+    g.fillRoundedRectangle (r, 4.0f);
+    g.setColour (juce::Colour (0xff1a2a2e));
+    g.drawLine (r.getX() + 3.0f, yOf (0.5f), r.getRight() - 3.0f, yOf (0.5f), 1.0f);
+    for (int k = 1; k < 4; ++k)
+    {
+        const float dash[] = { 3.0f, 3.0f };
+        g.drawDashedLine (juce::Line<float> (bx[k], r.getY() + 4.0f, bx[k], r.getBottom() - 4.0f), dash, 2, 1.0f);
+    }
+
+    juce::Path p, fill;
+    const int n = (int) inner.getWidth();
+    for (int i = 0; i <= n; ++i)
+    {
+        const float px = inner.getX() + (float) i;
+        const float y = yOf (levelAt (px));
+        if (i == 0) p.startNewSubPath (px, y); else p.lineTo (px, y);
+    }
+    fill = p;
+    fill.lineTo (inner.getRight(), inner.getBottom());
+    fill.lineTo (inner.getX(), inner.getBottom());
+    fill.closeSubPath();
+
+    const float glow = juce::jlimit (0.0f, 1.0f, modTabGlow
+                       + glowOf ({ "attack", "envDecay", "envSustain", "envFade", "release", "envCurve" }));
+    g.setGradientFill (juce::ColourGradient (electric.withAlpha (0.22f + 0.15f * glow), 0.0f, inner.getY(),
+                                             electric.withAlpha (0.0f), 0.0f, inner.getBottom(), false));
+    g.fillPath (fill);
+    g.setColour (electric.withAlpha (0.08f + 0.22f * glow));
+    g.strokePath (p, juce::PathStrokeType (6.0f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
+    g.setColour (electric.withAlpha (0.28f));
+    g.strokePath (p, juce::PathStrokeType (2.8f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
+    g.setColour (electric.brighter (0.3f).withAlpha (0.95f));
+    g.strokePath (p, juce::PathStrokeType (1.4f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
+
+    // Knotenpunkte an den Phasengrenzen
+    for (int k = 1; k < 4; ++k)
+    {
+        const juce::Point<float> node (bx[k], yOf (levelAt (bx[k] - 0.5f)));
+        g.setColour (amber.withAlpha (0.3f));
+        g.fillEllipse (juce::Rectangle<float> (11.0f, 11.0f).withCentre (node));
+        g.setColour (amber);
+        g.fillEllipse (juce::Rectangle<float> (5.0f, 5.0f).withCentre (node));
+    }
+
+    // Phasen-Buchstaben
+    static const char* names[] = { "A", "D", "S / F", "R" };
+    g.setFont (juce::FontOptions (10.0f, juce::Font::bold));
+    for (int k = 0; k < 4; ++k)
+    {
+        g.setColour (textCol.withAlpha (0.55f));
+        g.drawText (names[k], juce::Rectangle<float> (bx[k], r.getY() + 3.0f, bx[k + 1] - bx[k], 12.0f),
+                    juce::Justification::centred, false);
+    }
+
+    // laufender Lichtpunkt
+    {
+        const float u = std::fmod (time * 0.4f, 1.0f);
+        const float px = inner.getX() + u * inner.getWidth();
+        const juce::Point<float> dot (px, yOf (levelAt (px)));
+        g.setColour (juce::Colours::white.withAlpha (0.25f));
+        g.fillEllipse (juce::Rectangle<float> (14.0f, 14.0f).withCentre (dot));
+        g.setColour (juce::Colours::white);
+        g.fillEllipse (juce::Rectangle<float> (5.0f, 5.0f).withCentre (dot));
+    }
+
+    g.setColour (steelLine.interpolatedWith (electric, glow));
+    g.drawRoundedRectangle (r, 4.0f, 1.2f);
 }
 
 //==============================================================================

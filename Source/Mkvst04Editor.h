@@ -31,7 +31,8 @@ public:
 private:
     static constexpr int firstNote = 36;      // C2
     static constexpr int numKeys   = 36;      // 3 Oktaven
-    static constexpr int numKnobs  = 27;      // 9 unten, 5 Oszillatoren, 4 LFO, 5 Echo, 4 Reverb
+    static constexpr int numKnobs  = 41;      // 9 unten, 13 Oszillatoren (3 Reiter), 10 Modulation (2 Reiter),
+                                              // 5 Echo, 4 Reverb
 
     struct Knob
     {
@@ -48,6 +49,14 @@ private:
         juce::Rectangle<float> r;
         float glow = 0.0f;
     };
+    struct Toggle                             // LED-Schalter (Sync, Free-run), selbst gezeichnet
+    {
+        const char* id;
+        const char* name;
+        int tab;                              // Reiter im Oszillator-Feld
+        juce::Rectangle<float> r;
+        float glow = 0.0f;
+    };
     struct Flash   { int key; float life; };
     struct Dust    { float x, y, vx, vy, phase; };
     struct Spore   { juce::Point<float> p, v; float life, maxLife, size; juce::Colour col; };
@@ -58,6 +67,9 @@ private:
     juce::Rectangle<float> keyRect (int key) const;     // Haus + Beschriftungsleiste
     juce::Point<float> roofPoint (int key) const;       // Blitz-Ziel: Dach
     float param (const char* id) const;
+    float glowOf (std::initializer_list<const char*> ids) const;   // Summe der Regler-Leuchtwerte
+    void applyTabs();                                   // zeigt nur die Regler des aktiven Reiters
+    bool selectorVisible (size_t i) const { return i < 2 || modTab == 0; }
     void setChoice (const char* id, int index, int count);
     void mutate();
     void buildFigures();
@@ -77,8 +89,12 @@ private:
     void drawPanels (juce::Graphics&);
     void drawFxPanels (juce::Graphics&);
     void drawScope (juce::Graphics&, juce::Rectangle<float> r, int type, float cycles, float phase,
-                    float amp, float glow, juce::Colour c);
+                    float amp, float glow, juce::Colour c, float sym = 0.5f);
     void drawSelector (juce::Graphics&, const Selector&);
+    void drawTabs (juce::Graphics&, const std::vector<juce::Rectangle<float>>&, const juce::StringArray&,
+                   int current, float glow);
+    void drawToggle (juce::Graphics&, const Toggle&);
+    void drawEnvelope (juce::Graphics&, juce::Rectangle<float>);
     void drawEffects (juce::Graphics&);
     void drawTitle (juce::Graphics&);
 
@@ -92,6 +108,15 @@ private:
     std::array<Selector, 3> selectors { { { "osc1Wave", 4, 0, 1, {}, 0.0f },
                                           { "osc2Wave", 4, 0, 1, {}, 0.0f },
                                           { "lfoShape", 5, 1, 2, {}, 0.0f } } };
+    std::array<Toggle, 3> toggles { { { "osc1Free", "Free-run", 0, {}, 0.0f },
+                                      { "osc2Sync", "Sync",     1, {}, 0.0f },
+                                      { "osc2Free", "Free-run", 1, {}, 0.0f } } };
+
+    // Reiter: Oszillator-Feld OSC 1 / OSC 2 / MIX, Modulations-Feld LFO / ENV
+    int oscTab = 0, modTab = 0;
+    float oscTabGlow = 0.0f, modTabGlow = 0.0f;
+    std::vector<juce::Rectangle<float>> oscTabR, modTabR;
+    juce::Rectangle<float> envScope;
 
     // Layout
     juce::Point<float> sceneCentre;

@@ -28,6 +28,10 @@ juce::AudioProcessorValueTreeState::ParameterLayout Mkvst04Processor::createLayo
     {
         layout.add (std::make_unique<AudioParameterInt> (ParameterID { id, 1 }, name, lo, hi, def));
     };
+    auto addBool = [&] (const char* id, const char* name, bool def)
+    {
+        layout.add (std::make_unique<AudioParameterBool> (ParameterID { id, 1 }, name, def));
+    };
 
     // Filter, Effekte, Hüllkurve
     add ("dark",       "Dunkel",    Range (0.0f, 1.0f),              0.6f);
@@ -48,6 +52,25 @@ juce::AudioProcessorValueTreeState::ParameterLayout Mkvst04Processor::createLayo
     add       ("osc2Detune", "Osc 2 Detune", Range (-50.0f, 50.0f, 1.0f), 7.0f);   // Cent
     add       ("oscMix",   "Osc Mix",    Range (0.0f, 1.0f),              0.43f);
     add       ("sub",      "Sub",        Range (0.0f, 1.0f),              0.5f);
+    // Erweiterung 0.6: Halbtöne, Cent, Symmetrie, Sync, Free-run, Spread, FM/AM (Osc 2 -> Osc 1).
+    // Alle Standardwerte klingen wie vorher.
+    addInt    ("osc1Semi", "Osc 1 Semi", -12, 12, 0);
+    addInt    ("osc2Semi", "Osc 2 Semi", -12, 12, 0);
+    add       ("osc1Cent", "Osc 1 Cent", Range (-50.0f, 50.0f, 1.0f), 0.0f);
+    add       ("osc1Sym",  "Osc 1 Symmetrie", Range (0.0f, 1.0f),     0.5f);
+    add       ("osc2Sym",  "Osc 2 Symmetrie", Range (0.0f, 1.0f),     0.5f);
+    addBool   ("osc2Sync", "Osc 2 Sync",     false);
+    addBool   ("osc1Free", "Osc 1 Free-run", false);
+    addBool   ("osc2Free", "Osc 2 Free-run", false);
+    add       ("oscSpread", "Osc Spread", Range (0.0f, 1.0f),              0.0f);
+    add       ("oscFm",    "Osc FM",     Range (0.0f, 1.0f),              0.0f);
+    add       ("oscAm",    "Osc AM",     Range (0.0f, 1.0f),              0.0f);
+
+    // Hüllkurve ADSFR (Attack und Release stehen oben): Standardwerte = bisherige feste Werte
+    add       ("envDecay",   "Decay",   Range (0.005f, 4.0f, 0.0f, 0.4f), 0.5f);
+    add       ("envSustain", "Sustain", Range (0.0f, 1.0f),              0.7f);
+    add       ("envFade",    "Fade",    Range (0.0f, 10.0f, 0.0f, 0.5f), 0.0f);   // s, 0 = aus
+    add       ("envCurve",   "Kurve",   Range (0.0f, 1.0f),              0.0f);   // 0 linear
 
     // LFO: Form 0 Sinus, 1 Dreieck, 2 Rechteck, 3 Säge, 4 Sample & Hold
     addChoice ("lfoShape", "LFO Shape",  { "Sine", "Tri", "Square", "Saw", "S&H" }, 0);
